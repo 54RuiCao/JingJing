@@ -5,7 +5,7 @@ A local-first desktop reader. Your books, highlights, reading positions and AI k
 
 **语言 / Language：[中文 ↓](#中文) · [English ↓](#english)**
 
-Windows 10/11 · [下载最新版 / Download](https://github.com/54RuiCao/JingJing/releases/latest) · MIT
+Windows 10/11 · Android 7+（测试版 / beta）· [下载最新版 / Download](https://github.com/54RuiCao/JingJing/releases/latest) · MIT
 
 界面语言跟随系统（中文 / English），也可以随时在「设置与插件」里手动切换。
 The interface follows your system language and can be switched any time under Settings.
@@ -24,6 +24,21 @@ The interface follows your system language and can be switched any time under Se
 - 书库能按书组归类；主页侧栏放着笔记总览（跨书汇总，点一条跳回原文）和书组管理
 
 ![阅读](screenshots/reader.png)
+
+### 安卓版（测试中）
+
+![安卓版](screenshots/android.png)
+
+手机版和桌面版共用同一套代码，界面按窄屏重排：**侧栏变成底部抽屉**（目录 / 批注 / 检索 / AI / 设置与插件都在里面），并照顾了系统手势条与软键盘。
+
+- **安装**：下载 `鲸鲸-安卓测试版-0.1.0.apk`（9.4 MB，Android 7+ / arm64），点开安装时系统会提示"未知来源"，
+  允许一下即可（自签名包，不是应用商店包）
+- **操作**：左右滑动或**点屏幕左右两侧**翻页；点中间开关抽屉；双指缩放；返回键先收抽屉、再回书架
+- **功能**：书库 / 阅读 / 划线笔记 / 全文检索 / AI / 插件（9 个内置插件）都和桌面版一致；
+  插件包在手机上用「粘贴 JSON」或「选 .json 文件」导入
+- **限制**：不支持 PDF；没有书源、不破解 DRM；目前是自签名测试包
+
+下载在 [Releases](https://github.com/54RuiCao/JingJing/releases/latest) —— 同一个版本里同时放 Windows 版和安卓版。
 
 ### AI
 

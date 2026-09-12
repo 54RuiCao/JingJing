@@ -19,6 +19,24 @@ The interface follows your system language (Chinese / English) and you can switc
 
 ![Reader](screenshots/reader-en.png)
 
+## Android (beta)
+
+![Android](screenshots/android.png)
+
+The phone build shares the same codebase; the layout reflows for narrow screens — the sidebar becomes a
+**bottom sheet** (contents / notes / search / AI / settings all live there) and it accounts for the system
+gesture bar and the soft keyboard.
+
+- **Install**: download `鲸鲸-安卓测试版-0.1.0.apk` (9.4 MB, Android 7+, arm64). The system will warn about
+  an unknown source — allow it once (self-signed build, not from a store).
+- **Controls**: swipe or **tap the left/right edge** to turn pages, tap the middle to toggle the sheet,
+  pinch to zoom, and the back gesture closes the sheet first, then returns to the shelf.
+- **Features**: library, reading, highlights and notes, full-text search, AI and plugins (9 built-in) are
+  the same as on the desktop; plugin bundles are imported by pasting JSON or picking a `.json` file.
+- **Limits**: no PDF, no book sources, no DRM removal; this is a self-signed beta build.
+
+Both the Windows and the Android builds live in the same [release](https://github.com/54RuiCao/JingJing/releases/latest).
+
 ## AI
 
 Bring a DeepSeek key, or point it at any OpenAI-compatible endpoint, or a local Ollama.
