@@ -1,6 +1,7 @@
 // 通过 WebView2 的 DevTools 协议（CDP）读取应用真实 DOM 与控制台错误。
 // 用法: node tools/cdp.mjs "表达式" [--listen ms]
 //       node tools/cdp.mjs --file tools/probe.js [--listen ms]
+//       node tools/cdp.mjs --file tools/probe.js --emulate 390x844   # 按手机视口跑（P4 移动布局）
 //
 // **探针会改应用的设置，所以默认帮它复原**：跑之前把 settings 里 ai.* 那一行存一份，
 // 跑完（含抛错路径）原样写回。为什么要这么做：早期探针为了脱离真实 Key 跑通链路，
@@ -11,6 +12,14 @@ import { readFileSync } from "node:fs";
 const args = process.argv.slice(2);
 let expr = "document.body.innerText";
 let listenMs = 0;
+/** --emulate 390x844：临时把视口改成手机尺寸（验证移动布局用；改完自动恢复） */
+let emulate = null;
+const emuAt = args.indexOf("--emulate");
+if (emuAt >= 0) {
+  const m = /^(\d+)x(\d+)$/.exec(args[emuAt + 1] ?? "");
+  if (m) emulate = { width: Number(m[1]), height: Number(m[2]) };
+  args.splice(emuAt, 2);
+}
 if (args[0] === "--file") {
   expr = readFileSync(args[1], "utf8");
   if (args[2] === "--listen") listenMs = Number(args[3]);
@@ -110,8 +119,19 @@ ws.addEventListener("message", (ev) => {
 await new Promise((r) => ws.addEventListener("open", r));
 await send("Runtime.enable");
 await send("Log.enable");
+if (emulate) {
+  // 手机视口：width<=720 会走 platform.ts 的移动分支（和真机上同一套代码路径）
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: emulate.width,
+    height: emulate.height,
+    deviceScaleFactor: 2,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 600));
+}
 if (listenMs > 0) await new Promise((r) => setTimeout(r, listenMs));
 
 const out = await send("Runtime.evaluate", { expression: wrapped, returnByValue: true, awaitPromise: true });
 console.log(JSON.stringify({ url: page.url, result: out.result?.result?.value ?? out.result, logs }, null, 2));
+if (emulate) await send("Emulation.clearDeviceMetricsOverride");
 ws.close();

@@ -75,6 +75,7 @@ import { dayKey, summarizeActivity } from "./reader/readingActivity";
 import { applyAppTheme, THEMES, THEME_LIST, type ThemeId } from "./reader/themes";
 import { THEME_TOKENS } from "./ui/theme/overrides";
 import { getLangPref, initI18n, setLangPref, type LangPref } from "./i18n";
+import { isForeground, useMobile } from "./platform";
 import { useT } from "./i18n/react";
 
 /** P0-3：在这些属性上做 CSS.supports 探测，判断 WebView2（Chromium）原生支持到什么程度 */
@@ -188,6 +189,12 @@ export default function App() {
   >([]);
   const [indexStatus, setIndexStatus] = useState<string | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>("toc");
+  /**
+   * P4 移动端：窄视口/真机走手机布局（侧栏变成底部抽屉）。
+   * 桌面预览：localStorage["aireader.mobilePreview"] = "1" 或 URL 加 ?mobile=1。
+   */
+  const mobile = useMobile();
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
   const [currentAuthor, setCurrentAuthor] = useState("");
   const [currentHref, setCurrentHref] = useState<string | null>(null);
@@ -297,6 +304,11 @@ export default function App() {
   }, [dbReady]);
 
   // P2.4：分栏宽度（读一次、改了就存）
+  // 手机上换页（书架 ⇄ 阅读）时收起底部抽屉：不然它盖着刚打开的内容
+  useEffect(() => {
+    if (mobile) setSheetOpen(false);
+  }, [mobile, route]);
+
   useEffect(() => {
     if (!dbReady) return;
     void getSetting<number>("ui.sideWidth", 300).then((w) => {
@@ -585,6 +597,8 @@ export default function App() {
    * 采集放宿主是因为插件两头都够不着：沙箱没有定时器，也看不到路由与焦点。
    */
   const activityRef = useRef({ lastTickAt: 0, lastActiveAt: 0, lastLocation: -1, turns: 0 });
+  const mobileRef = useRef(mobile);
+  mobileRef.current = mobile;
   const routeRef = useRef(route);
   routeRef.current = route;
   const bookOpenRef = useRef(false);
@@ -599,11 +613,19 @@ export default function App() {
     const seconds = prev ? Math.min(ACTIVITY_TICK_SECONDS * 2, (now - prev) / 1000) : 0;
     const turns = a.turns;
     a.turns = 0;
+    /**
+     * P4：判定"在读"的两条平台差异。
+     *   - Android 会挂起后台 WebView，所以我们先看 **前台可见**（visibilityState）；
+     *   - 桌面上"切到别的窗口"不该计时，所以桌面仍然要 hasFocus()；
+     *     手机上不能用 hasFocus()：弹软键盘、下拉通知栏、系统弹窗都会让它变 false，
+     *     那几秒其实人还在读书（实测口径见 docs/16 与 P3.7 的采集说明）。
+     */
+    const focused = mobileRef.current ? true : typeof document !== "undefined" && document.hasFocus();
     const reading =
       routeRef.current === "reader" &&
       bookOpenRef.current &&
-      typeof document !== "undefined" &&
-      document.hasFocus() &&
+      isForeground() &&
+      focused &&
       now - a.lastActiveAt < ACTIVITY_IDLE_MS;
     if (!reading || (seconds <= 0 && turns <= 0)) return;
     try {
@@ -617,6 +639,26 @@ export default function App() {
     if (!dbReady) return;
     const id = window.setInterval(() => void flushActivity(), ACTIVITY_TICK_SECONDS * 1000);
     return () => window.clearInterval(id);
+  }, [dbReady, flushActivity]);
+
+  /**
+   * 前后台切换（P4 移动端的主要差异点）。
+   *   - 切到后台：**立刻结算一次**，因为 Android 可能马上把进程杀掉（最坏情况丢 20 秒增量）；
+   *   - 回到前台：把 lastTickAt 归零，下次结算的 delta 从"回来这一刻"算起，
+   *     不然会把后台那一段时间当成阅读时长（桌面上最小化窗口也是同一个道理）。
+   */
+  useEffect(() => {
+    if (!dbReady) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        void flushActivity();
+      } else {
+        activityRef.current.lastTickAt = 0;
+        activityRef.current.lastActiveAt = Date.now();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [dbReady, flushActivity]);
 
   const readingActivity: ReadingActivityService = useMemo(
@@ -1269,7 +1311,11 @@ export default function App() {
             className={`air-toc-item${active ? " active" : ""}`}
             style={{ paddingLeft: 6 + Math.min(depth, 3) * 12 }}
             ref={active ? currentTocRef : undefined}
-            onClick={() => it.href && void handleRef.current?.goTo(it.href)}
+            onClick={() => {
+              // 手机上点目录就是要跳到那一章：顺手收起抽屉，否则它盖着正文
+              if (mobile) setSheetOpen(false);
+              if (it.href) void handleRef.current?.goTo(it.href);
+            }}
             title={it.label ?? ""}
           >
             {String(it.label ?? "").slice(0, 80)}
@@ -1331,7 +1377,7 @@ export default function App() {
   const groupCounts = useMemo(() => countByGroup(groupLinks), [groupLinks]);
 
   return (
-    <div className="air-app">
+    <div className="air-app" data-mobile={mobile ? "true" : "false"}>
       <div className="air-reader-shell" style={{ display: "flex" }}>
       {route === "reader" && (
       <div className="air-bar">
@@ -1353,7 +1399,7 @@ export default function App() {
           </>
         )}
         {txtStats && (
-          <span style={{ color: "#5b6472", fontSize: 12 }}>
+          <span className="air-stat-text" style={{ color: "#5b6472", fontSize: 12 }}>
             {t("app.txtImportStats", {
               chapters: txtStats.chapters,
               chars: (txtStats.chars / 10000).toFixed(1),
@@ -1412,7 +1458,8 @@ export default function App() {
                 pointerEvents: "none",
               }}
             >
-              <div style={{ fontSize: 15 }}>{t("app.dropHint")}</div>
+              {/* 手机上没法"拖进来"（触摸屏没有 drag & drop），换成"点按钮选文件"的说法 */}
+              <div style={{ fontSize: 15 }}>{mobile ? t("app.dropHintMobile") : t("app.dropHint")}</div>
               <div style={{ fontSize: 12 }}>{ready ? t("app.engineReady") : t("app.engineLoading")}</div>
               {error && <div style={{ color: "#b3261e", fontSize: 12 }}>{error}</div>}
             </div>
@@ -1453,6 +1500,7 @@ export default function App() {
           )}
         </div>
 
+        {!mobile && (
         <div
           className="air-side-drag"
           title={t("app.dragSideWidth")}
@@ -1470,13 +1518,36 @@ export default function App() {
             window.addEventListener("mouseup", up);
           }}
         />
-        <aside className="air-side" style={{ width: sideWidth, flex: "0 0 auto" }}>
+        )}
+        <aside
+          className="air-side"
+          data-open={mobile ? (sheetOpen ? "true" : "false") : undefined}
+          // 手机上宽度交给 CSS（100%），桌面才用拖动出来的宽度
+          style={mobile ? undefined : { width: sideWidth, flex: "0 0 auto" }}
+        >
           <div className="air-tabs">
             {tabs.map(([id, label]) => (
-              <button key={id} data-active={tab === id} onClick={() => setSideTab(id)}>
+              <button
+                key={id}
+                data-active={tab === id}
+                onClick={() => {
+                  setSideTab(id);
+                  if (mobile) setSheetOpen(true);
+                }}
+              >
                 {label}
               </button>
             ))}
+            {mobile && (
+              <button
+                className="air-sheet-close"
+                title={t("app.closePanel")}
+                aria-label={t("app.closePanel")}
+                onClick={() => setSheetOpen(false)}
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           {/* 侧栏内容区：固定高度、自己滚动（AI 那一页内部再分「消息区滚动 + 输入框常驻」） */}

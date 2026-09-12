@@ -13,7 +13,9 @@ export default defineConfig({
     // Windows 上必须排掉 Rust 的构建目录：chokidar 会去 watch target/ 里的
     // *.exe（构建脚本），文件被链接器占着 → "EBUSY: resource busy or locked"，
     // 整个 dev server 直接退出（实测踩到，tauri dev 起不来）。
-    watch: { ignored: ["**/src-tauri/**", "**/dist/**"] },
+    // 还要排掉"写文件时产生的临时目录"：编辑器/工具会写 .xxx.tmpdir/xxx.tmp，
+    // 刚写就被链接器或同进程占着 → 同样的 EBUSY 崩掉 dev server（实测踩到第二次）。
+    watch: { ignored: ["**/src-tauri/**", "**/dist/**", "**/.*.tmpdir/**", "**/*.tmp"] },
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {

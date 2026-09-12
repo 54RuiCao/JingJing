@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { importBookFromPath } from "./importBook";
+import { importBookFromFile, importBookFromPath } from "./importBook";
+import { isMobile } from "../platform";
 import { listBooks, deleteBook, type Book } from "../store/db";
 import { filterBooks, groupsOfBook, type BookGroup, type BookGroupLink, type SortKey } from "./manage";
 import { useT } from "../i18n/react";
@@ -89,7 +90,34 @@ export function LibraryPage({
     [refresh, onLibraryChanged, t],
   );
 
+  /** 导入一个 File（移动端路径：字节走 IPC，不依赖 content:// 能被 Rust 读到） */
+  const importFileOne = useCallback(
+    async (file: File) => {
+      setError(null);
+      try {
+        setBusy(t("lib.importing", { name: file.name }));
+        await importBookFromFile(file);
+      } catch (e) {
+        setError(t("lib.importFailed", { error: String(e) }));
+      } finally {
+        setBusy(null);
+        await refresh();
+        onLibraryChanged?.();
+      }
+    },
+    [refresh, onLibraryChanged, t],
+  );
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const pickAndImport = useCallback(async () => {
+    // P4：手机上不用 dialog 插件 —— Android 的文件选择器返回 content:// URI，
+    // Rust 侧读不了（要走 ContentResolver）。WebView 里的 <input type="file">
+    // 直接给 File 对象，读成字节交给 import_book_bytes，两条路落的盘完全一样。
+    if (isMobile()) {
+      fileInputRef.current?.click();
+      return;
+    }
     const picked = await openDialog({
       multiple: true,
       filters: [
@@ -117,6 +145,21 @@ export function LibraryPage({
     <div className="air-library">
       <div className="air-bar">
         <button onClick={() => void pickAndImport()}>{t("lib.importBooks")}</button>
+        {/* 移动端的文件选择：常驻在 DOM 里、display 隐藏，点按钮时 .click()（见 pickAndImport） */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".epub,.txt,.mobi,.azw3,.azw,.fb2,.cbz,application/epub+zip"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = ""; // 同一个文件能再选一次
+            void (async () => {
+              for (const f of files) await importFileOne(f);
+            })();
+          }}
+        />
         <input
           className="air-search"
           placeholder={t("lib.searchPlaceholder")}

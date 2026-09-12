@@ -9,6 +9,7 @@
  * "auto" 在模块加载时就按 navigator.language 定下来，所以英文系统首帧就是英文，
  * 不会先闪一下中文；用户显式选过语言的话，App 读到设置后再覆盖（几十毫秒）。
  */
+import { isAndroid, isIOS } from "../platform";
 import { messages, type MessageKey } from "./messages";
 import type { Lang, LangPref, Params } from "./types";
 
@@ -90,6 +91,8 @@ export function applyDocLang(): void {
 }
 
 async function setWindowTitle(title: string): Promise<void> {
+  // 手机（Android / iOS）没有"窗口标题"这个概念，调了也是抛错
+  if (isAndroid() || isIOS()) return;
   try {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().setTitle(title);

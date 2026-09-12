@@ -55,6 +55,17 @@ Key 由宿主代填，不会交给插件。
 - 目前只有 Windows，Android 版在开发中
 - 插件沙箱是 API 纪律，不是安全边界，它防手滑，不防恶意代码
 
+### 免责声明
+
+- **只做本地阅读**：鲸鲸**不提供书源**、不搜索、不下载、也不移除 DRM；它只打开**你自己导入**的文档。
+  请只导入你合法拥有或有权阅读的文件，导入与使用产生的后果由使用者自负。
+- **插件免责**：插件（内置的、第三方安装的，以及 AI 当场写出来的）由**各自的作者**负责。
+  插件沙箱是 **API 纪律，不是安全边界** —— 它防手滑，不防恶意代码；安装、授权第三方或 AI 生成的
+  插件之前请自行判断，作者不对插件的行为与后果负责。
+- **AI 输出**：AI 的回答、以及它写出来的插件代码都由模型生成，**可能有错**，请自行核对
+  （尤其涉及会花钱的接口时）。
+- 软件按 MIT 许可**按现状提供**，不附带任何形式的担保。
+
 ### 从源码构建
 
 需要 Node 20+、Rust 稳定版，Windows 上还需要 WebView2。
@@ -121,6 +132,19 @@ Writing your own: see [docs/plugin-api.md](docs/plugin-api.md) ([English](docs/p
 - Windows only for now; an Android version is in development
 - The plugin sandbox is API discipline, not a security boundary — it stops mistakes, not malicious code
 
+### Disclaimer
+
+- **Local reading only.** JingJing ships **no book sources**, does not search for or download books, and
+  does not remove DRM. It only opens documents **you import yourself**. Please import only files you
+  legally own or are entitled to read; you are responsible for what you do with them.
+- **Plugins.** Built-in, third-party and AI-written plugins are the responsibility of **their respective
+  authors**. The plugin sandbox is **API discipline, not a security boundary** — it stops mistakes, not
+  malicious code. Judge for yourself before installing or granting anything; the authors accept no
+  liability for what a plugin does.
+- **AI output.** Answers and generated plugin code come from a model and **can be wrong** — check them
+  yourself, especially anything that spends money.
+- The software is provided **as is**, under the MIT license, without warranty of any kind.
+
 ### Build from source
 
 Needs Node 20+, a stable Rust toolchain and, on Windows, WebView2.
@@ -145,6 +169,23 @@ docs/    plugin documentation
 
 MIT. The bundled rendering engine [foliate-js](https://github.com/johnfactotum/foliate-js) and the runtime
 [quickjs-ng](https://github.com/quickjs-ng/quickjs) are MIT as well.
+
+---
+
+## 赞赏支持 / Support
+
+鲸鲸是**免费开源**的，**没有任何付费功能** —— 所有功能对所有人开放，赞赏与否完全不影响使用。
+如果它对你有帮助，你可以**自愿**扫码支持开发与维护，谢谢。
+
+JingJing is **free and open source with no paid features** — everything is available to everyone, and
+supporting it changes nothing about the software. If it helps you, you may **voluntarily** scan a code
+below to support its development and maintenance. Thank you.
+
+<p align="center">
+  <img src="sponsor/code-1.png" width="200" alt="赞赏码 1 / Support code 1" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="sponsor/code-2.jpg" width="200" alt="赞赏码 2 / Support code 2" />
+</p>
 
 ---
 

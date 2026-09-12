@@ -34,6 +34,8 @@ const zh = {
   "lib.timeYesterday": "昨天",
   "lib.timeDaysAgo": "{n} 天前",
   "lib.pdfUnsupported": "PDF 暂不支持：解析已打通但渲染尚未完成，请先转换为 EPUB / TXT 再导入",
+  "lib.emptyFile": "这个文件是空的",
+  "lib.contentUriUnsupported": "手机上请用「导入书籍」按钮选文件（系统选择器返回的 content:// 地址不能直接导入）",
 } as const;
 
 const en: Record<keyof typeof zh, string> = {
@@ -71,6 +73,8 @@ const en: Record<keyof typeof zh, string> = {
   "lib.timeYesterday": "Yesterday",
   "lib.timeDaysAgo": "{n} days ago",
   "lib.pdfUnsupported": "PDF is not supported yet: parsing works but rendering is unfinished. Convert it to EPUB or TXT and import that instead.",
+  "lib.emptyFile": "That file is empty",
+  "lib.contentUriUnsupported": "On a phone use the Import Books button to pick a file (the system picker's content:// address cannot be imported directly)",
 };
 
 export const libraryPart = { zh, en };

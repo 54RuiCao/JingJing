@@ -20,6 +20,7 @@ import {
   toggleGroupId,
 } from "../app/src/library/manage";
 import { setLangPref } from "../app/src/i18n";
+import { bytesToBase64 } from "../app/src/library/bytes";
 
 // 断言写的是中文默认文案：把界面语言钉死，别受开发机系统语言影响
 setLangPref("zh");
@@ -153,9 +154,40 @@ check("七天前 → 显示日期", /^0?9-0?5$/.test(relativeTime(at(12, 0, -7),
 check("跨天但只差 2 小时仍算昨天（不按小时差）", relativeTime(at(23, 59, -1), at(1, 0)) === "昨天");
 check("0 时间戳 → 空串", relativeTime(0, now) === "");
 
+// ---------- 6) P4 移动导入：二进制 → base64 ----------
+//
+// 这条最容易写错的地方是**分块边界**：一次性 String.fromCharCode(...bytes) 在几 MB
+// 的书上会爆调用栈，所以实现按 32KB 分块拼；跨块的那几个字节必须原样接上。
+
+const b64 = (bytes: Uint8Array) => bytesToBase64(bytes);
+const roundTrip = (bytes: Uint8Array) => Buffer.from(b64(bytes), "base64");
+
+check("空数组 → 空串", b64(new Uint8Array(0)) === "");
+check(
+  "单字节",
+  roundTrip(new Uint8Array([0]))[0] === 0,
+);
+const ascii = new TextEncoder().encode("EPUB 里的一小段中文 + ascii \u0000\u00ff");
+check("含中文与 0x00 的往返一致", Buffer.compare(roundTrip(ascii), Buffer.from(ascii)) === 0);
+check("空串的 base64 长度是 0", b64(new Uint8Array(0)).length === 0);
+
+// 跨 32KB 分块边界：32767 / 32768 / 32769 / 100000 个字节
+for (const n of [32767, 32768, 32769, 100000]) {
+  const data = new Uint8Array(n);
+  for (let i = 0; i < n; i++) data[i] = (i * 31 + 7) & 0xff;
+  const back = roundTrip(data);
+  check(
+    n + " 字节往返一致（跨分块边界）",
+    back.length === n && back.every((v, i) => v === data[i]),
+    "长度 " + back.length,
+  );
+}
+const big = new Uint8Array(200000).fill(0xab);
+check("20 万字节不爆栈", b64(big).length > 0);
+
 console.log("P3.9 书库管理契约测试：" + pass + " 通过 / " + failures.length + " 失败");
 if (failures.length) {
   for (const f of failures) console.log("  ✗ " + f);
   process.exit(1);
 }
-console.log("  ✓ 全部通过（筛选与排序叠加 / 书组计数与勾选 / 组名校验 / 笔记按书分组 / 相对时间）");
+console.log("  ✓ 全部通过（筛选与排序叠加 / 书组计数与勾选 / 组名校验 / 笔记按书分组 / 相对时间 / base64 分块）");

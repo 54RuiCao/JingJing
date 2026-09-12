@@ -164,6 +164,51 @@ fn import_book_file(app: tauri::AppHandle, src: String) -> Result<Value, String>
     }))
 }
 
+/// 从**内存字节**导入一本书（P4 移动端）。
+///
+/// 为什么需要它：Android 的文件选择器给回来的是 `content://` URI，Rust 侧
+/// `std::fs::read` 读不了（那要走 ContentResolver）。所以移动端在前端用
+/// `<input type="file">` 拿到 File，读成字节后 base64 传进来，落盘与去重口径
+/// 与 `import_book_file` 完全一致（内容寻址：sha256 前 16 位 + 扩展名）。
+#[tauri::command]
+fn import_book_bytes(app: tauri::AppHandle, name: String, base64: String) -> Result<Value, String> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64.as_bytes())
+        .map_err(|e| format!("文件内容解码失败: {e}"))?;
+    if bytes.is_empty() {
+        return Err("文件是空的".into());
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    let digest = hasher.finalize();
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    let sha = hex[..16].to_string();
+
+    // 扩展名只认文件名最后一段（Android 传进来的可能是 "书名.epub" 或 "content"）
+    let ext = std::path::Path::new(&name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let file_name = if ext.is_empty() {
+        sha.clone()
+    } else {
+        format!("{sha}.{ext}")
+    };
+    let dest = books_dir(&app)?.join(&file_name);
+    if !dest.exists() {
+        std::fs::write(&dest, &bytes).map_err(|e| e.to_string())?;
+    }
+
+    Ok(json!({
+        "sha": sha,
+        "path": dest.to_string_lossy(),
+        "originalName": name,
+        "ext": ext,
+        "size": bytes.len(),
+    }))
+}
+
 /// 保存"派生文件"（目前是 TXT 转换出来的 EPUB）。
 /// 用 base64 传二进制，避免把几十万个数字的数组塞进 IPC。
 #[tauri::command]
@@ -563,6 +608,7 @@ pub fn run() {
             db_select,
             get_books_dir,
             import_book_file,
+            import_book_bytes,
             save_book_derived,
             delete_book_file,
             get_skills_dir,

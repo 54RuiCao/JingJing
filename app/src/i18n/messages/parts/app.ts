@@ -2,6 +2,8 @@
 const zh = {
   "app.name": "鲸鲸",
   "app.languageHeading": "界面语言",
+  "app.dropHintMobile": "点「打开书籍」选一本书（EPUB / TXT / MOBI / FB2 / CBZ）",
+  "app.closePanel": "收起面板",
   "app.langAuto": "跟随系统",
   "app.langZh": "中文",
   "app.langEn": "English",
@@ -114,6 +116,8 @@ const zh = {
 const en: Record<keyof typeof zh, string> = {
   "app.name": "JingJing",
   "app.languageHeading": "Language",
+  "app.dropHintMobile": "Tap Open Book to pick a file (EPUB / TXT / MOBI / FB2 / CBZ)",
+  "app.closePanel": "Hide panel",
   "app.langAuto": "Follow system",
   "app.langZh": "Chinese",
   "app.langEn": "English",

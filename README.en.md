@@ -45,6 +45,19 @@ Writing your own: see [docs/plugin-api.md](docs/plugin-api.md) ([English](docs/p
 - Windows only for now; an Android version is in development
 - The plugin sandbox is API discipline, not a security boundary — it stops mistakes, not malicious code
 
+## Disclaimer
+
+- **Local reading only.** JingJing ships **no book sources**, does not search for or download books, and
+  does not remove DRM. It only opens documents **you import yourself**. Please import only files you
+  legally own or are entitled to read; you are responsible for what you do with them.
+- **Plugins.** Built-in, third-party and AI-written plugins are the responsibility of **their respective
+  authors**. The plugin sandbox is **API discipline, not a security boundary** — it stops mistakes, not
+  malicious code. Judge for yourself before installing or granting anything; the authors accept no
+  liability for what a plugin does.
+- **AI output.** Answers and generated plugin code come from a model and **can be wrong** — check them
+  yourself, especially anything that spends money.
+- The software is provided **as is**, under the MIT license, without warranty of any kind.
+
 ## Build from source
 
 Needs Node 20+, a stable Rust toolchain and, on Windows, WebView2.
@@ -69,3 +82,15 @@ docs/    plugin documentation
 
 MIT. The bundled rendering engine [foliate-js](https://github.com/johnfactotum/foliate-js) and the runtime
 [quickjs-ng](https://github.com/quickjs-ng/quickjs) are MIT as well.
+
+## Support
+
+JingJing is **free and open source with no paid features** — everything is available to everyone, and
+supporting it changes nothing about the software. If it helps you, you may **voluntarily** scan a code
+below to support its development and maintenance. Thank you.
+
+<p align="center">
+  <img src="sponsor/code-1.png" width="200" alt="Support code 1" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="sponsor/code-2.jpg" width="200" alt="Support code 2" />
+</p>

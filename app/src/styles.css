@@ -1574,3 +1574,141 @@ foliate-view {
   color: #b3261e;
 }
 
+/* ---------- P4 移动端布局（data-mobile="true"） ---------- */
+/*
+ * 手机上变三件事：
+ *   1. 侧栏 → **底部抽屉**：标签行常驻屏幕底部（拇指够得着），内容向上滑出；
+ *   2. 高度用 100dvh + safe-area：Android 的地址栏、手势条、刘海不吃正文；
+ *   3. 命中区放大到 38px 以上；桌面那套 hover 才出现的按钮在触摸屏上没有意义，改成常显。
+ * 桌面预览：localStorage["aireader.mobilePreview"]="1" 或 URL 加 ?mobile=1（见 src/platform.ts）。
+ */
+[data-mobile="true"] {
+  height: 100dvh;
+}
+
+[data-mobile="true"] .air-app,
+[data-mobile="true"] .air-reader-shell,
+[data-mobile="true"] .air-library {
+  height: 100%;
+}
+
+[data-mobile="true"] .air-bar {
+  padding-top: calc(6px + env(safe-area-inset-top));
+  padding-left: calc(10px + env(safe-area-inset-left));
+  padding-right: calc(10px + env(safe-area-inset-right));
+  gap: 6px;
+  flex-wrap: nowrap;      /* 手机顶栏不换行：一换行正文就被挤没了 */
+  overflow-x: auto;       /* 按钮多就横向滚 */
+  scrollbar-width: none;
+}
+
+[data-mobile="true"] .air-bar::-webkit-scrollbar,
+[data-mobile="true"] .air-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+[data-mobile="true"] .air-bar button,
+[data-mobile="true"] .air-bar select {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 6px 12px;
+}
+
+[data-mobile="true"] .air-side-drag {
+  display: none;
+}
+
+/* ---------- 底部抽屉 ---------- */
+
+[data-mobile="true"] .air-side {
+  /* 项目里没有全局 box-sizing: border-box，抽屉是 width:100% + 左右 padding，
+     不写这行就会比视口宽 24px（实测 390 视口下量到 414） */
+  box-sizing: border-box;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-height: 74dvh;
+  display: flex;
+  flex-direction: column;
+  border-left: 0;
+  border-top: 1px solid var(--air-border, #dfe3ea);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
+  padding: 6px 12px calc(8px + env(safe-area-inset-bottom));
+  overflow: hidden;       /* 内部自己滚 */
+  /* 收起时只留标签行（46px）在屏幕底部 */
+  transform: translateY(calc(100% - 46px));
+  transition: transform 0.18s ease;
+  z-index: 30;
+}
+
+[data-mobile="true"] .air-side[data-open="true"] {
+  transform: translateY(0);
+}
+
+[data-mobile="true"] .air-tabs {
+  flex: 0 0 auto;
+  margin: 0 0 6px;
+  padding: 0 0 6px;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+[data-mobile="true"] .air-tabs button {
+  min-height: 40px;
+  padding: 6px 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+[data-mobile="true"] .air-tabs .air-sheet-close {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 40px;
+  font-size: 15px;
+  color: var(--air-sub, #7b8494);
+}
+
+[data-mobile="true"] .air-side-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 抽屉常驻的那 46px 不该盖住正文 */
+[data-mobile="true"] .air-reader-col,
+[data-mobile="true"] .air-library {
+  padding-bottom: 46px;
+}
+
+/* 手机顶栏只留"能点的"：TXT 导入统计与状态这类长文本挤掉按钮就没法用了 */
+[data-mobile="true"] .air-bar .air-stat-text {
+  display: none;
+}
+
+/* 触摸屏没有 hover：桌面靠 hover 才出现的元素改成常显 */
+[data-mobile="true"] .air-card-del {
+  opacity: 1;
+}
+
+[data-mobile="true"] .air-card:hover {
+  transform: none;
+}
+
+/* 列表项与按钮再大一点，手指点得中 */
+[data-mobile="true"] .air-toc-item,
+[data-mobile="true"] .air-toc-tree button {
+  min-height: 38px;
+  padding: 6px 8px;
+}
+
+[data-mobile="true"] .air-grid {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+
