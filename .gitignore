@@ -1,0 +1,35 @@
+# 依赖与构建产物
+app/node_modules/
+app/dist/
+app/src-tauri/target/
+app/src-tauri/gen/
+
+# 生成的测试素材（由 tools/make-fixtures.mjs 重新生成）
+fixtures/
+app/public/*.epub
+
+# 本地产物
+*.log
+shot*.png
+
+# 内部工作笔记（不上传：设计与实测记录，属于项目内部记忆）
+# 只公开两份插件开发文档，其余 docs/*.md 都是内部笔记 —— 用一条规则概括，
+# 免得把内部文件名一个个列在这里（那也是不该展示的东西）
+docs/*.md
+!docs/plugin-api.md
+!docs/plugin-api.en.md
+
+# 开发用测试素材与内部报告（tools/prepare-dev-fixtures.mjs 可重新生成）
+app/dev-fixtures/
+p0-report.json
+
+# 一次性端到端探针：开发过程中用来复现/验证某个具体现象的脚本，
+# 里面写死了本机路径与本人装过的插件 id，不进公开仓库（保留 probe-i18n.js 作示例）
+tools/probe-*.js
+!tools/probe-i18n.js
+
+# 打包给测试者的产物（本地生成，不进仓库）
+release/
+
+# 打包产物（zip 放仓库根目录，别误提交）
+*.zip

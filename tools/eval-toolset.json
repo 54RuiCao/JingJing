@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "note": "模型行为评测集（04-ai-agent.md 纪律 5）：换模型 / 改提示词 / 改工具描述后必须跑一遍。需要真实 Key 与本地 mock 之外的网络。",
+  "fixture": "排版测试用中文样书（5 章 · 1,536 token）——小书才省钱",
+  "tasks": [
+    {
+      "id": "toc-basic",
+      "question": "这本书一共几章？分别叫什么？",
+      "mustCallTools": [
+        "get_toc"
+      ],
+      "answerMustContain": [
+        "5"
+      ],
+      "answerMustNotContain": [
+        "我无法"
+      ],
+      "maxSteps": 2
+    },
+    {
+      "id": "chapter-quote",
+      "question": "第一章里用来比喻记忆的原话是什么？",
+      "answerMustContain": [
+        "录像机"
+      ],
+      "mustCite": true,
+      "maxSteps": 2
+    },
+    {
+      "id": "citation-format",
+      "question": "第二章讲了什么？",
+      "mustCite": true,
+      "answerMustNotContain": [
+        "CH 0"
+      ],
+      "maxSteps": 1
+    },
+    {
+      "id": "chapter-out-of-range",
+      "question": "第 99 章的标题是什么？",
+      "mustReportAbsence": true,
+      "answerMustNotContain": [
+        "第 99 章"
+      ],
+      "maxSteps": 3
+    },
+    {
+      "id": "selection-gap",
+      "question": "把这段划一下（用户没有选中任何文字）",
+      "mustCallTools": [
+        "get_selection",
+        "add_highlight"
+      ],
+      "mustRecoverFromError": true,
+      "maxSteps": 3
+    },
+    {
+      "id": "search-then-answer",
+      "question": "「注意力」这个词出现在第几章？",
+      "mustCallTools": [
+        "search_book"
+      ],
+      "answerMustContain": [
+        "三"
+      ],
+      "maxSteps": 3
+    },
+    {
+      "id": "no-fabrication",
+      "question": "书里提到的作者最喜欢的城市是哪里？",
+      "mustReportAbsence": true,
+      "answerMustNotContain": [
+        "是巴黎",
+        "是北京"
+      ],
+      "maxSteps": 2
+    },
+    {
+      "id": "progress",
+      "question": "我现在读到哪了？",
+      "mustCallTools": [
+        "get_reading_progress"
+      ],
+      "maxSteps": 2
+    },
+    {
+      "id": "no-tool-needed",
+      "question": "用一句话概括这本书的主题。",
+      "mustNotCallTools": true,
+      "maxSteps": 1
+    },
+    {
+      "id": "goto",
+      "question": "带我去第三章。",
+      "mustCallTools": [
+        "goto_location"
+      ],
+      "maxSteps": 2
+    },
+    {
+      "id": "plugin-write-component",
+      "note": "P3.5 的教训：断言必须落在**结果**上（点名一个随机 pluginId，看它有没有真的出现）。模型在长会话里会凭记忆把整条流程复述一遍、连哈希都编出来，只比对文字是查不出来的。",
+      "question": "给我加一个小功能：在阅读区尾部显示「当前这一章还剩多少页」。用插件的方式做，pluginId 用 {{pluginId}}。请真的调用插件工具来完成，不要凭记忆回答。",
+      "pluginId": "eval.left-pages-{{nonce}}",
+      "noFullBook": true,
+      "mustCallTools": [
+        "plugin_inspect",
+        "plugin_define",
+        "plugin_run"
+      ],
+      "mustCallBefore": [
+        ["plugin_inspect", "plugin_define"],
+        ["plugin_define", "plugin_run"]
+      ],
+      "mustExistPlugin": true,
+      "maxSteps": 8
+    }
+  ],
+  "metrics": [
+    "工具选择是否正确",
+    "引用是否给章节号",
+    "不确定时是否明说（不编造）",
+    "步数是否收敛（≤ maxSteps）",
+    "总花费（元）"
+  ]
+}
