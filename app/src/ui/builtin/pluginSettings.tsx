@@ -9,7 +9,7 @@
  * 注意它不 import 任何加载器内部结构：插件在 UI 层也是"只见服务"的。
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useT } from "../../i18n/react";
 import { t } from "../../i18n";
 import type { MessageKey } from "../../i18n";
@@ -377,6 +377,33 @@ function PluginSettings({ plugins, permissions }: { plugins?: PluginsService; pe
   const [pasteMode, setPasteMode] = useState(false);
   const [paste, setPaste] = useState("");
   const [importing, setImporting] = useState(false);
+  const bundleInputRef = useRef<HTMLInputElement | null>(null);
+
+  /** 安装一个插件包（粘贴的文本、或从文件选择器读到的文本，走同一条路） */
+  const importBundleText = (text: string) => {
+    // 收窄一次类型：插件服务在 render 开头已判空，但闭包里 TS 丢掉了这个收窄
+    const svc = plugins;
+    if (!svc) return;
+    setImporting(true);
+    setNote("");
+    void (async () => {
+      try {
+        const { bundle, run: result } = await svc.importBundle(text);
+        setPaste("");
+        setPasteMode(false);
+        setNote(
+          result.state === "PENDING_PERMISSION"
+            ? t("plug.import.donePending", { name: bundle.name, version: bundle.version, state: result.state })
+            : t("plug.import.done", { name: bundle.name, version: bundle.version, state: result.state }),
+        );
+      } catch (e) {
+        setNote(t("plug.import.failed", { msg: String(e instanceof Error ? e.message : e) }));
+      } finally {
+        setImporting(false);
+        setTick((t) => t + 1);
+      }
+    })();
+  };
   if (!plugins) return <div className="air-plugin-hint">{t("plug.serviceUnavailable")}</div>;
   const list = plugins.list();
   const report = plugins.scanReport();
@@ -425,30 +452,33 @@ function PluginSettings({ plugins, permissions }: { plugins?: PluginsService; pe
             <button
               className="air-plugin-btn air-plugin-btn-strong"
               disabled={importing || !paste.trim()}
-              onClick={() => {
-                setImporting(true);
-                setNote("");
-                void (async () => {
-                  try {
-                    const { bundle, run: result } = await plugins.importBundle(paste);
-                    setPaste("");
-                    setPasteMode(false);
-                    setNote(
-                      result.state === "PENDING_PERMISSION"
-                        ? t("plug.import.donePending", { name: bundle.name, version: bundle.version, state: result.state })
-                        : t("plug.import.done", { name: bundle.name, version: bundle.version, state: result.state }),
-                    );
-                  } catch (e) {
-                    setNote(t("plug.import.failed", { msg: String(e instanceof Error ? e.message : e) }));
-                  } finally {
-                    setImporting(false);
-                    setTick((t) => t + 1);
-                  }
-                })();
-              }}
+              onClick={() => importBundleText(paste)}
             >
               {t("plug.import.install")}
             </button>
+            {/* P4：手机上没人能往插件目录里丢文件，也不好粘一大段 JSON ——
+                给一个文件选择器，选导出的 .json 包即装（桌面同样可用） */}
+            <button
+              className="air-plugin-btn"
+              disabled={importing}
+              title={t("plug.import.pickTitle")}
+              onClick={() => bundleInputRef.current?.click()}
+            >
+              {t("plug.import.pick")}
+            </button>
+            <input
+              ref={bundleInputRef}
+              type="file"
+              accept=".json,application/json,text/plain"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) {
+                  void file.text().then((text) => importBundleText(text));
+                }
+              }}
+            />
             <span className="air-plugin-hint">{t("plug.paste.hint")}</span>
           </div>
         </div>

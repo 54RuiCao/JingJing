@@ -195,6 +195,13 @@ export default function App() {
    */
   const mobile = useMobile();
   const [sheetOpen, setSheetOpen] = useState(false);
+  /**
+   * P4：**Android 的返回键/返回手势**在 WebView 里就是 `history.back()`。
+   * 我们用它做一个最小的界面栈（深度用 ref 记账，避免 push/pop 打架）：
+   *   抽屉打开 = +1，阅读页 = +1；返回键先收抽屉，再退回书架，都没有才退出应用。
+   * 桌面不受影响（mobile 为假时深度恒为 0）。
+   */
+  const uiDepthRef = useRef(0);
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
   const [currentAuthor, setCurrentAuthor] = useState("");
   const [currentHref, setCurrentHref] = useState<string | null>(null);
@@ -308,6 +315,42 @@ export default function App() {
   useEffect(() => {
     if (mobile) setSheetOpen(false);
   }, [mobile, route]);
+
+  /** 关抽屉：走 history.back()，让 popstate 统一收口（这样"界面栈深度"不会记歪） */
+  const closeSheet = useCallback(() => {
+    if (mobile && sheetOpen) history.back();
+    else setSheetOpen(false);
+  }, [mobile, sheetOpen]);
+
+  // 该压几层：抽屉 +1、阅读页 +1
+  const uiDepth = mobile ? (sheetOpen ? 1 : 0) + (route === "reader" && bookName ? 1 : 0) : 0;
+  useEffect(() => {
+    if (!mobile) {
+      uiDepthRef.current = 0;
+      return;
+    }
+    while (uiDepthRef.current < uiDepth) {
+      history.pushState({ aireaderUi: uiDepthRef.current + 1 }, "");
+      uiDepthRef.current += 1;
+    }
+  }, [mobile, uiDepth]);
+
+  useEffect(() => {
+    if (!mobile) return;
+    const onPop = () => {
+      uiDepthRef.current = Math.max(0, uiDepthRef.current - 1);
+      if (sheetOpen) {
+        setSheetOpen(false);
+        return;
+      }
+      if (routeRef.current === "reader" && bookOpenRef.current) {
+        setRoute("library");
+      }
+      // 都没有可退的界面：交给浏览器（最终退出应用）
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [mobile, sheetOpen]);
 
   useEffect(() => {
     if (!dbReady) return;
@@ -1313,7 +1356,7 @@ export default function App() {
             ref={active ? currentTocRef : undefined}
             onClick={() => {
               // 手机上点目录就是要跳到那一章：顺手收起抽屉，否则它盖着正文
-              if (mobile) setSheetOpen(false);
+              if (mobile) closeSheet();
               if (it.href) void handleRef.current?.goTo(it.href);
             }}
             title={it.label ?? ""}
@@ -1543,7 +1586,7 @@ export default function App() {
                 className="air-sheet-close"
                 title={t("app.closePanel")}
                 aria-label={t("app.closePanel")}
-                onClick={() => setSheetOpen(false)}
+                onClick={closeSheet}
               >
                 ✕
               </button>

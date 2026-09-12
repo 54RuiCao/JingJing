@@ -89,8 +89,6 @@ JingJing is **free and open source with no paid features** — everything is ava
 supporting it changes nothing about the software. If it helps you, you may **voluntarily** scan a code
 below to support its development and maintenance. Thank you.
 
-<p align="center">
-  <img src="sponsor/code-1.png" width="200" alt="Support code 1" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="sponsor/code-2.jpg" width="200" alt="Support code 2" />
-</p>
+| Code 1 | Code 2 |
+|:---:|:---:|
+| ![Support code 1](sponsor/code-1.png) | ![Support code 2](sponsor/code-2.jpg) |
