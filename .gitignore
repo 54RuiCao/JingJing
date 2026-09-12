@@ -2,7 +2,10 @@
 app/node_modules/
 app/dist/
 app/src-tauri/target/
-app/src-tauri/gen/
+# capability 的 schema 是自动生成的，不进仓库；但 gen/android 是**要提交**的
+# （里面是 Gradle 工程与清单，不提交别人就构建不了移动版；它自带的 .gitignore 已经排除了
+#  local.properties / build 产物 / .tauri 这些机器相关的东西）
+app/src-tauri/gen/schemas/
 
 # 生成的测试素材（由 tools/make-fixtures.mjs 重新生成）
 fixtures/

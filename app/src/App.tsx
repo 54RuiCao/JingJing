@@ -776,12 +776,48 @@ export default function App() {
     console.error("[slot] " + slot + " 的「" + (entry.label ?? entry.owner) + "」渲染失败，已从格子里摘掉", error);
   }, []);
 
+  /**
+   * 插件运行时挂载。
+   *
+   * P4 实测踩到：**首次冷启动可能挂不上** —— `mount()` 里要先 `permissions.ready()`
+   * （读设置表里的授权记录）再扫插件目录，如果这时候数据库还在建表/迁移，它就会抛；
+   * 而 `void runtime.mount()` 把 rejection 吞了，界面看起来正常但一个插件都没有
+   * （手机上第一次装完打开就是这样：设置面板里没有插件区、阅读区尾部也没有状态条）。
+   *
+   * 所以两件事：**等 dbReady 再挂**，并且**把失败说出来**（同时留一次重试）。
+   */
+  const [pluginMountFailed, setPluginMountFailed] = useState(false);
   useEffect(() => {
-    void runtime.mount();
+    if (!dbReady) return;
+    let alive = true;
+    const doMount = async () => {
+      try {
+        await runtime.mount();
+        if (alive) setPluginMountFailed(false);
+      } catch (e) {
+        if (!alive) return;
+        setPluginMountFailed(true);
+        console.error("[plugins] 插件运行时挂载失败：", e);
+      }
+    };
+    void doMount();
     return () => {
+      alive = false;
       void runtime.dispose();
     };
-  }, [runtime]);
+  }, [runtime, dbReady]);
+
+  // 挂载失败给一次自动重试（数据库刚建好那一下最容易撞上）
+  useEffect(() => {
+    if (!pluginMountFailed) return;
+    const id = window.setTimeout(() => {
+      void runtime.mount().then(
+        () => setPluginMountFailed(false),
+        (e) => console.error("[plugins] 重试仍然失败：", e),
+      );
+    }, 1500);
+    return () => window.clearTimeout(id);
+  }, [pluginMountFailed, runtime]);
 
   /**
    * P3.6：插件覆盖的主题 token。
