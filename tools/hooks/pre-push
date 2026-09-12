@@ -1,0 +1,5 @@
+#!/bin/sh
+# push 之前自检：把"本机路径 / 我装过的插件 id / 我在读的书 / 真实 Key"挡在本地。
+# 见 tools/check-publish.mjs；个人关键词在 tools/publish-denylist.local.txt（不进仓库）。
+# 安装：cp tools/hooks/pre-push .git/hooks/pre-push
+exec node "$(git rev-parse --show-toplevel)/tools/check-publish.mjs"

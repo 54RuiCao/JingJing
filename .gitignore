@@ -23,6 +23,9 @@ docs/*.md
 app/dev-fixtures/
 p0-report.json
 
+# 个人关键词清单（喂给 tools/check-publish.mjs；写进仓库就等于换地方泄露）
+tools/*.local.txt
+
 # 一次性端到端探针：开发过程中用来复现/验证某个具体现象的脚本，
 # 里面写死了本机路径与本人装过的插件 id，不进公开仓库（保留 probe-i18n.js 作示例）
 tools/probe-*.js
