@@ -8,15 +8,23 @@
 // 原理：Android WebView 的调试 socket 名是 webview_devtools_remote_<pid>，
 // 用 adb forward 转到本机 9222 端口，之后 node tools/cdp.mjs --file xxx.js 照常跑。
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 // adb 从环境变量推：手上有 ANDROID_HOME 就用它下面的 platform-tools，
 // 否则退回 PATH 里的 adb（**不写死本机路径** —— 那会跟着仓库一起泄露，
 // tools/check-publish.mjs 就是这么把我拦下来的）
 const sdkRoot = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
-const ADB =
-  process.env.ADB ||
-  (sdkRoot ? join(sdkRoot, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb") : "adb");
+const exe = process.platform === "win32" ? "adb.exe" : "adb";
+// 候选顺序：显式指定 → ANDROID_HOME → 标准 SDK 位置（注意用 %LOCALAPPDATA% 这种**通用**变量，
+// 不写死某台机器的 D:\... 路径）→ PATH 里的 adb
+const candidates = [
+  process.env.ADB,
+  sdkRoot && join(sdkRoot, "platform-tools", exe),
+  process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Android", "Sdk", "platform-tools", exe),
+  "adb",
+].filter(Boolean);
+const ADB = candidates.find((p) => p === "adb" || existsSync(p)) ?? "adb";
 const PKG = process.env.PKG ?? "app.aireader.desktop";
 
 const adb = (...args) => execFileSync(ADB, args, { encoding: "utf8" }).trim();
@@ -42,6 +50,13 @@ if (!pid) {
   process.exit(2);
 }
 const socket = "webview_devtools_remote_" + pid.split(/\s+/)[0];
+// 先撤掉旧转发：app 重启后 pid 变了，旧的 socket 已经关掉，
+// 不撤的话新转发会 bind 失败（或者转到一个死 socket，fetch 直接 socket closed）
+try {
+  adb("forward", "--remove", "tcp:9222");
+} catch {
+  /* 没有旧的就算了 */
+}
 adb("forward", "tcp:9222", "localabstract:" + socket);
 console.log("已转发 tcp:9222 → " + socket);
 console.log("现在可以用：node tools/cdp.mjs --file tools/probe-phone.js");

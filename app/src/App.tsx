@@ -1460,8 +1460,14 @@ export default function App() {
       <div className="air-reader-shell" style={{ display: "flex" }}>
       {route === "reader" && (
       <div className="air-bar">
-        <button onClick={() => setRoute("library")}>{t("app.backToLibrary")}</button>
-        <button onClick={pick}>{t("app.openFile")}</button>
+        <button onClick={() => setRoute("library")}>
+          <span className="air-only-desktop">{t("app.backToLibrary")}</span>
+          <span className="air-only-mobile">←</span>
+        </button>
+        <button onClick={pick}>
+          <span className="air-only-desktop">{t("app.openFile")}</span>
+          <span className="air-only-mobile">{t("app.openShort")}</span>
+        </button>
         {DEV_TOOLS && (
           <>
             <button onClick={() => void loadFixture()}>{t("app.openFixture")}</button>
@@ -1470,11 +1476,21 @@ export default function App() {
         )}
         {bookName && (
           <>
-            <button onClick={() => void handleRef.current?.prev()}>{t("app.prevPage")}</button>
-            <button onClick={() => void addBookmark()}>{t("app.addBookmark")}</button>
-            <button onClick={() => void handleRef.current?.next()}>{t("app.nextPage")}</button>
+            <button onClick={() => void handleRef.current?.prev()}>
+              <span className="air-only-desktop">{t("app.prevPage")}</span>
+              <span className="air-only-mobile">‹</span>
+            </button>
+            <button onClick={() => void addBookmark()}>
+              <span className="air-only-desktop">{t("app.addBookmark")}</span>
+              <span className="air-only-mobile">{t("app.bookmarkShort")}</span>
+            </button>
+            <button onClick={() => void handleRef.current?.next()}>
+              <span className="air-only-desktop">{t("app.nextPage")}</span>
+              <span className="air-only-mobile">›</span>
+            </button>
             <span style={{ minWidth: 46, textAlign: "right" }}>{(fraction * 100).toFixed(1)}%</span>
-            <span style={{ color: "#7b8494" }}>{location}</span>
+            {/* 手机上位位置文本交给底部状态条（插件席位）显示，顶栏省下这一截宽度 */}
+            <span className="air-only-desktop" style={{ color: "#7b8494" }}>{location}</span>
           </>
         )}
         {txtStats && (
@@ -1491,7 +1507,8 @@ export default function App() {
         {/* 自检结果只在调试构建里显示：它是 P0 的排查痕迹，不该出现在给别人的版本里（实测截图里会带出来） */}
         {DEV_TOOLS && reportInfo && <span style={{ color: "#16794c", fontSize: 12 }}>{reportInfo}</span>}
         <span className="air-spacer" />
-        <span style={{ color: "#7b8494", maxWidth: 420, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {/* 书名：桌面在右端截断；手机上让它跟按钮同排、按剩余宽度截断（见 .air-bar-title） */}
+        <span className="air-bar-title">
           {title}
         </span>
       </div>

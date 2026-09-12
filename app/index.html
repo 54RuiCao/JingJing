@@ -2,7 +2,15 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover：Android 上 Tauri 是 edge-to-edge（MainActivity 调了 enableEdgeToEdge），
+         不加这个的话 env(safe-area-inset-*) 全是 0，底部抽屉就会钻到系统手势条下面 -->
+    <!-- interactive-widget=resizes-content：软键盘弹出时**布局视口跟着缩**，
+         这样固定在底部的抽屉（AI 输入框就在里面）会自动抬到键盘之上，
+         不然输入时会被键盘挡住 -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <title>鲸鲸</title>
   </head>
   <body>

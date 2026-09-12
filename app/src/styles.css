@@ -58,6 +58,15 @@ foliate-view {
   flex: 1;
 }
 
+/* 顶栏右侧的书名：桌面限宽 420 并截断 */
+.air-bar-title {
+  color: var(--air-sub, #7b8494);
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .air-main {
   flex: 1;
   display: flex;
@@ -1596,10 +1605,41 @@ foliate-view {
   padding-top: calc(6px + env(safe-area-inset-top));
   padding-left: calc(10px + env(safe-area-inset-left));
   padding-right: calc(10px + env(safe-area-inset-right));
-  gap: 6px;
-  flex-wrap: nowrap;      /* 手机顶栏不换行：一换行正文就被挤没了 */
-  overflow-x: auto;       /* 按钮多就横向滚 */
-  scrollbar-width: none;
+  gap: 4px;
+  /* 手机上**不横滑**（用户反馈：要滑才能看全很难用）。改成：
+     按钮用短标签（见 .air-only-mobile）压缩宽度，缺空间时允许换行兜底。 */
+  flex-wrap: wrap;
+  overflow: visible;
+  row-gap: 4px;
+}
+
+[data-mobile="true"] .air-bar button {
+  padding: 6px 9px;
+}
+
+/* 手机上书名跟按钮同排、占满剩余宽度（否则它掉到第二行，顶栏就 110px 高了） */
+[data-mobile="true"] .air-bar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+/* 手机上 .air-spacer 会白白吃掉一整行，直接不要 —— 书名自己会撑开 */
+[data-mobile="true"] .air-spacer {
+  display: none;
+}
+
+/* 短/长标签：桌面看长的，手机看短的 */
+.air-only-mobile {
+  display: none;
+}
+
+[data-mobile="true"] .air-only-desktop {
+  display: none;
+}
+
+[data-mobile="true"] .air-only-mobile {
+  display: inline;
 }
 
 [data-mobile="true"] .air-bar::-webkit-scrollbar,
@@ -1638,8 +1678,9 @@ foliate-view {
   box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
   padding: 6px 12px calc(8px + env(safe-area-inset-bottom));
   overflow: hidden;       /* 内部自己滚 */
-  /* 收起时只留标签行（46px）在屏幕底部 */
-  transform: translateY(calc(100% - 46px));
+  /* 收起时只留标签行（46px）在屏幕底部 —— 还要再抬一个安全区，
+     否则那 46px 正好落在 Android 的手势条/导航键下面（用户反馈就是这个） */
+  transform: translateY(calc(100% - 54px - env(safe-area-inset-bottom)));
   transition: transform 0.18s ease;
   z-index: 30;
 }
@@ -1679,10 +1720,10 @@ foliate-view {
   -webkit-overflow-scrolling: touch;
 }
 
-/* 抽屉常驻的那 46px 不该盖住正文 */
+/* 抽屉常驻的那 54px 不该盖住正文（真机安全区 44px 时实测 46 会压进手势区 8px） */
 [data-mobile="true"] .air-reader-col,
 [data-mobile="true"] .air-library {
-  padding-bottom: 46px;
+  padding-bottom: 54px;
 }
 
 /* 手机顶栏只留"能点的"：TXT 导入统计与状态这类长文本挤掉按钮就没法用了 */
