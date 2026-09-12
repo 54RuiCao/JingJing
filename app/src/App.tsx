@@ -1250,6 +1250,24 @@ export default function App() {
     [flow],
   );
 
+  /**
+   * P4 点击翻页（手机）。
+   *
+   * 左 30% = 上一页，右 30% = 下一页，中间 = 开关底部抽屉（大多数手机阅读器的习惯）。
+   * 只在**触摸设备 + 分页模式**生效：滚动模式下点是选字/滚屏，翻页没有意义；
+   * 桌面上不订阅（保持原来"只能滚轮/按钮/键盘翻页"的行为不变）。
+   */
+  const onTapZone = useCallback(
+    (zone: "prev" | "next" | "center") => {
+      if (!mobile || flow !== "paginated") return;
+      activityRef.current.lastActiveAt = Date.now();
+      if (zone === "prev") void handleRef.current?.prev();
+      else if (zone === "next") void handleRef.current?.next();
+      else setSheetOpen((open) => !open);
+    },
+    [mobile, flow],
+  );
+
   // ---------- 批注（划线 / 书签 / 笔记） ----------
 
   /** 把某章节的划线交给引擎绘制 */
@@ -1543,6 +1561,7 @@ export default function App() {
             }}
             onReady={onReady}
             onRelocate={onRelocate}
+            onTapZone={onTapZone}
             onError={(e) => setError(String(e))}
           />
           {!bookName && (

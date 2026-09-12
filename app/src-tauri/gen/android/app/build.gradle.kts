@@ -13,6 +13,13 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// 分享测试用的自签名配置（key.properties 在 gen/android/ 下，已被该目录的 .gitignore 排除）
+val keystoreProperties = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val hasReleaseKey = keystoreProperties.getProperty("storeFile") != null
+
 android {
     compileSdk = 36
     // 钉住已装的 build-tools，别让 AGP 去 dl.google.com 下它的默认版本（这机器访问 Google 很慢）
@@ -25,6 +32,16 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        create("release") {
+            if (hasReleaseKey) {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -39,6 +56,8 @@ android {
             }
         }
         getByName("release") {
+            // 有签名密钥就用它（否则出一个未签名包，装不上）
+            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release") else signingConfig
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

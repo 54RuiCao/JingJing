@@ -34,6 +34,11 @@ tools/*.local.txt
 tools/probe-*.js
 !tools/probe-i18n.js
 
+# 签名密钥与本地密钥文件（绝不进仓库）
+secrets/
+*.keystore
+*.jks
+
 # 打包给测试者的产物（本地生成，不进仓库）
 release/
 

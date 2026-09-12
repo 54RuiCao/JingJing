@@ -82,6 +82,12 @@ type Props = {
   getAnnotations?: (sectionIndex: number) => BookAnnotation[];
   /** 用户点击了书里的某条批注 */
   onAnnotationActivate?: (a: BookAnnotation) => void;
+  /**
+   * P4 点击翻页：用户在正文里"点了一下"。
+   * zone 按点击位置分三档（左 30% / 中间 / 右 30%）—— 由上层决定怎么用
+   * （手机：左右翻页、中间开关抽屉；桌面：不订阅就没有任何行为改变）。
+   */
+  onTapZone?: (zone: "prev" | "next" | "center") => void;
 };
 
 /*
@@ -112,6 +118,7 @@ export function FoliateView({
   onRestored,
   getAnnotations,
   onAnnotationActivate,
+  onTapZone,
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<any>(null);
@@ -130,15 +137,72 @@ export function FoliateView({
   getAnnotationsRef.current = getAnnotations;
   const onAnnotationActivateRef = useRef(onAnnotationActivate);
   onAnnotationActivateRef.current = onAnnotationActivate;
+  const onTapZoneRef = useRef(onTapZone);
+  onTapZoneRef.current = onTapZone;
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     let disposed = false;
 
+    /**
+     * P4 点击翻页：正文在 iframe 里，宿主收不到 click —— 必须**挂进每个 iframe 的 document**。
+     * foliate 的 `renderer.getContents()` 正好给出当前所有内容文档（它自己就是靠这个挂触摸手势的）。
+     *
+     * 三条判据缺一不可，否则会跟"滑动翻页 / 长按选中 / 点链接"打架：
+     *   1. 按下到抬起位移 ≤ 12px（滑动交给 foliate 自己的手势）
+     *   2. 间隔 ≤ 900ms（长按是选字）
+     *   3. 抬起时选区是收起的，且落点不在 <a> 上
+     */
+    const wiredDocs = new WeakSet<Document>();
+    const wireTapZones = () => {
+      const contents: any[] = viewRef.current?.renderer?.getContents?.() ?? [];
+      for (const c of contents) {
+        const doc: Document | undefined = c?.doc;
+        if (!doc || wiredDocs.has(doc)) continue;
+        wiredDocs.add(doc);
+        let down: { x: number; y: number; t: number } | null = null;
+        doc.addEventListener(
+          "pointerdown",
+          ((e: PointerEvent) => {
+            down = { x: e.clientX, y: e.clientY, t: Date.now() };
+          }) as EventListener,
+          true,
+        );
+        doc.addEventListener(
+          "pointerup",
+          ((e: PointerEvent) => {
+            const d = down;
+            down = null;
+            if (!d || !onTapZoneRef.current) return;
+            if (Math.abs(e.clientX - d.x) > 12 || Math.abs(e.clientY - d.y) > 12) return;
+            if (Date.now() - d.t > 900) return;
+            const target = e.target as Element | null;
+            if (target?.closest?.("a")) return;
+            const sel = doc.getSelection?.();
+            if (sel && !sel.isCollapsed) return;
+            /**
+             * 分区按**宿主视口**算，不能用 `doc.documentElement.clientWidth`：
+             * paginator 是"一个 iframe 装整节、用 transform 平移"的做法，
+             * iframe 文档宽度 = 整节几十页（实测 360 视口下 clientWidth 是几千），
+             * 拿它当分母会让每次点击都算成最左边 → 一直往前翻（真机实测就是这个现象）。
+             * 屏幕坐标 = iframe 在宿主里的位置 + iframe 文档内的 clientX。
+             */
+            const frameLeft = doc.defaultView?.frameElement?.getBoundingClientRect?.()?.left ?? 0;
+            const hostW = window.innerWidth || 1;
+            const ratio = (e.clientX + frameLeft) / hostW;
+            onTapZoneRef.current(ratio < 0.3 ? "prev" : ratio > 0.7 ? "next" : "center");
+          }) as EventListener,
+          true,
+        );
+      }
+    };
+
     const makeView = () => {
       const view = document.createElement("foliate-view") as any;
       view.addEventListener("relocate", (e: CustomEvent<RelocateDetail>) => {
+        // 换页/换章后内容文档会重建，这里补挂一次（WeakSet 保证不重复挂）
+        wireTapZones();
         relocateRef.current?.(e.detail);
       });
 
@@ -201,6 +265,7 @@ export function FoliateView({
               fresh.renderer?.setStyles?.(cssRef.current);
               // 先渲染首页，保证渲染器就绪
               await fresh.renderer?.next?.();
+              wireTapZones();
               // P0-6：再用 CFI 跳回上次位置（比 init() 可靠：init 是异步渲染，
               // 紧跟 getContents() 判断会误判为空并多翻一页，实测会导致位置后跳一章）
               const saved = savedLocationRef.current?.() as { cfi?: string } | null;
