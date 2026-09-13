@@ -28,6 +28,12 @@ export const THEME_TOKENS = [
   "--air-accent",
   "--air-cover-from",
   "--air-cover-to",
+  // P5「外观权限」：正文（书内 iframe）自己的三色。它们**不过 documentElement**——
+  // 正文在另一个 document 里，变量传不过去，所以由 App 解出来交给 buildBookCSS。
+  // 有了这三个，"阅读背景改不了"才真正有解。
+  "--air-book-bg",
+  "--air-book-text",
+  "--air-book-link",
 ] as const;
 
 export type ThemeTokenName = (typeof THEME_TOKENS)[number];
@@ -49,6 +55,14 @@ export class ThemeOverrideError extends Error {
 
 const MAX_TOKENS = 32;
 const MAX_VALUE_CHARS = 64;
+
+/**
+ * token 值的形状限制（P5）：值会被**原样拼进 CSS**（书内样式表），
+ * 所以能拆开声明的东西一律拒 —— 否则 `--air-book-bg: "red; } body { display: none"`
+ * 就等于拿到了一段任意 CSS，token 覆盖就不再是"只能改颜色"了。
+ * 颜色/渐变/字体名都不需要这几个字符。
+ */
+const UNSAFE_VALUE = /[;{}<>\n\r]/;
 
 export function createThemeOverrideCore() {
   let layers: ThemeOverrideLayer[] = [];
@@ -91,6 +105,9 @@ export function createThemeOverrideCore() {
           }
           if (v.length > MAX_VALUE_CHARS) {
             throw new ThemeOverrideError(t("plug.theme.valueTooLong", { name, max: MAX_VALUE_CHARS }));
+          }
+          if (UNSAFE_VALUE.test(v)) {
+            throw new ThemeOverrideError(t("plug.theme.valueUnsafe", { name }));
           }
         }
         clean[name as ThemeTokenName] = value;

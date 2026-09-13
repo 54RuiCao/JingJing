@@ -197,6 +197,8 @@ export type PluginBundle = {
   purpose: string;
   version: string;
   capabilities: string[];
+  /** P5 前置服务（顺序无关）：导出/导入时一起带走，否则依赖会静默消失 */
+  inject?: string[];
   files: { path: string; content: string }[];
 };
 

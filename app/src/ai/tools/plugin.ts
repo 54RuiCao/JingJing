@@ -130,7 +130,33 @@ export const DYNAMIC_CTX_API: { api: string; capability: string | null; note: st
   {
     api: "ctx.theme.overrideTokens({ '--air-accent': '#c00' })",
     capability: "ui.theme",
-    note: "覆盖主题 CSS 变量；值可以是字符串，也可以按主题给 { light, sepia, dark }。只能覆盖 --air-bg/panel/text/sub/border/hover/accent/cover-from/cover-to",
+    note:
+      "覆盖主题 CSS 变量；值可以是字符串，也可以按主题给 { light, sepia, dark }。" +
+      "可覆盖：--air-bg/panel/text/sub/border/hover/accent/cover-from/cover-to，以及 P5 新增的正文三色 " +
+      "--air-book-bg（**阅读背景**）/--air-book-text（正文颜色）/--air-book-link（链接色）。" +
+      "值只能是颜色这类单值（不能带分号/花括号）——它会被原样拼进 CSS。",
+  },
+  /**
+   * P5「外观权限」：用户报的"阅读背景改不了"的正面解。
+   * token 只能改预设变量；真要调排版/页边/自己那块 UI，就得给 CSS 本身。
+   */
+  {
+    api: "ctx.get('plugin.名字') / ctx.services()",
+    capability: null,
+    note:
+      "P5 前置服务（DSH 的 inject）：读**别的插件**用 ctx.provide('plugin.x', 纯数据) 提供的服务。" +
+      "只有 manifest.inject 里声明过的名字读得到（声明既是依赖也是门禁），而且只认 plugin.* 前缀。" +
+      "依赖没到不会失败：容器让插件先 park（PENDING），提供方挂上后自动继续。",
+  },
+  {
+    api: "ctx.styles.insert(css, { scope: 'app' | 'book' })",
+    capability: "ui.styles",
+    note:
+      "插入一段 CSS：scope:'app' 改应用外壳，scope:'book' 改**书籍正文**（每本书的正文文档，正文里可以写 " +
+      "var(--air-bg)/var(--air-book-bg) 等变量）。插件卸载/授权撤销时宿主自动撤掉，不用自己清；" +
+      "ctx.styles.clear() 可以主动撤掉自己插的全部。" +
+      "四条边界：单插件 ≤16 张表、合计 ≤64KB；**不许 @import 或远程 url(...)**（会绕开 net.fetch 的域名授权），" +
+      "要远程资源请先 ctx.net.fetch 再内联或用 data: URI；只能撤自己的。",
   },
 ];
 
@@ -195,6 +221,11 @@ function nextStep(result: PluginRunResult): string {
         "等用户授权：" + result.missing.join(" / ") +
         "（在右侧「插件」设置面板里点授权；授权后会自动挂起来，不需要再 run）" +
         (result.denied.length ? "；已被拒绝过的是：" + result.denied.join(" / ") + "（明确拒绝过的能力不会自动重试）" : "")
+      );
+    case "PENDING":
+      return (
+        "在等前置服务（manifest 的 inject）：这是**正常状态，不是失败** —— " +
+        "提供它的那个插件挂上后会自动继续，不需要再 run。要确认依赖名对不对，用 plugin_inspect 的 query=services 看现在有哪些插件服务。"
       );
     case "FAILED":
       return (
@@ -300,6 +331,17 @@ export function createPluginTools(deps: PluginToolDeps): ToolDefinition[] {
             disposerFailures: diag.disposerFailures,
             fibers: diag.fibers,
           };
+          /**
+           * P5 前置服务（照 DSH 的 inject）：让 AI 知道"依赖别人"是**一等机制**，
+           * 而不是每次都在自己那个包里重造一份数据。
+           */
+          value.injectHowTo = [
+            "① 依赖别的插件：manifest 写 inject: ['plugin.stats']，代码里 ctx.get('plugin.stats') 读它的**纯数据**。",
+            "   ctx.services() 列出当前可依赖的插件服务（只列 plugin.* 前缀的）。",
+            "② 依赖没到**不是错误**：容器会让这个插件先 park（状态 PENDING），提供方挂上后自动继续；",
+            "   提供方被卸载时依赖方会重新判定（自动 park 回去），不需要你写防御代码。",
+            "③ 只认 plugin. 前缀：读 reader/db/theme 这类宿主服务要写对应名字的 ctx.* 门面那一条路（那里才有能力门禁）。",
+          ].join("\n");
         }
         if (wantAll || query === "api") {
           value.api = DYNAMIC_CTX_API;
@@ -338,6 +380,8 @@ export function createPluginTools(deps: PluginToolDeps): ToolDefinition[] {
     capabilities?: string[];
     /** 网络范围（P3.10）：声明 net.fetch 时必填 */
     network?: { origins?: string[] };
+    /** 前置服务（P5）：依赖别的插件提供的 plugin.xxx */
+    inject?: string[];
     config?: unknown;
   }> = {
     name: "plugin_define",
@@ -363,6 +407,14 @@ export function createPluginTools(deps: PluginToolDeps): ToolDefinition[] {
             "做「用用户已配置的 AI 服务」的插件时，net.fetch 与 ai.credentials 一起声明（后者让宿主代填 Authorization，不必再让用户填 Key）",
         },
         config: { type: "object", properties: {}, additionalProperties: true, description: "可选：JSON Schema（type 为 object），宿主会用它渲染配置表单并同步校验。**要用户填 API Key / 参数就写这里**，不要写死在代码里" },
+        inject: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "可选：前置服务 —— 你要依赖的**别的插件**提供的服务名（形如 plugin.stats）。" +
+            "声明之后代码里用 ctx.get('plugin.stats') 读它的纯数据；依赖没到你的插件会先 park（PENDING），" +
+            "提供方挂上后自动继续。只能写 plugin. 前缀（reader/db 这类宿主能力走对应的 ctx.* 门面）",
+        },
         network: {
           type: "object",
           properties: {
@@ -392,6 +444,7 @@ export function createPluginTools(deps: PluginToolDeps): ToolDefinition[] {
         ui: args?.ui ? String(args.ui) : undefined,
         capabilities: Array.isArray(args?.capabilities) ? (args.capabilities as string[]) : undefined,
         network: args?.network as { origins?: string[] } | undefined,
+        inject: Array.isArray(args?.inject) ? (args.inject as string[]) : undefined,
         config: args?.config,
       });
       if (!result.ok) {
@@ -414,6 +467,7 @@ export function createPluginTools(deps: PluginToolDeps): ToolDefinition[] {
           hash: pkg.hash,
           files: pkg.files.map((f) => f.path),
           capabilities: pkg.capabilities,
+          inject: pkg.inject ?? [],
           created: result.created,
           previousVersionPackageId: result.previousPackageId,
           syntax: "已通过（只编译不执行）",
@@ -544,6 +598,12 @@ export function createPluginTools(deps: PluginToolDeps): ToolDefinition[] {
       }
       if (diagnosis.renderFailures.length) {
         hints.push("界面渲染失败过：多半是 VDOM 用了白名单外的标签/属性，或 render 不是同步的（plugin_inspect 的 query=ui 有白名单）");
+      }
+      if (diagnosis.state === "PENDING") {
+        hints.push(
+          "它在等前置服务（manifest 的 inject）—— 这是**正常状态，不是失败**：" +
+            "提供方挂上后会自动继续；要确认依赖名对不对，用 plugin_inspect 的 query=services 看现在有哪些插件服务",
+        );
       }
       if (diagnosis.missing.length) hints.push("缺授权：" + diagnosis.missing.join(" / ") + "（用户在插件设置面板授权后会自动挂起来）");
       if (diagnosis.denied.length) hints.push("被明确拒绝过的能力不会被自动重试：" + diagnosis.denied.join(" / "));

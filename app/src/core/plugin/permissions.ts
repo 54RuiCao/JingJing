@@ -29,6 +29,9 @@ export const HOST_IMPLEMENTED_CAPABILITIES: CapabilityId[] = [
   "ui.slot",
   // P3.6：主题 token 覆盖（ctx.theme.overrideTokens）
   "ui.theme",
+  // P5：样式表注入（ctx.styles.insert）。外观插件的"够用一档"：token 改不了的东西
+  //（阅读背景、行距、页边、自己那一块 UI 的样子）在这里改。
+  "ui.styles",
   // P3.10：网络（ctx.net.fetch）。**范围是域名**：授权时给的是 manifest.network.origins
   // 那份清单，每次调用再按目标 origin 复核 —— 所以"授权了 api.deepseek.com"就真的只能访问它。
   "net.fetch",

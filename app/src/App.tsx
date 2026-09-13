@@ -157,7 +157,14 @@ export default function App() {
   const [themeId, setThemeId] = useState<ThemeId>("light");
   const theme = THEMES[themeId];
   const settingsLoaded = useRef(false);
-  const bookCss = useMemo(() => buildBookCSS(typo, theme), [typo, theme]);
+  /**
+   * P5 外观权限：插件覆盖层解出来的 token 结果（含 `--air-book-*` 正文三色）。
+   * 它必须是 state 而不是"只在 effect 里写 DOM"—— 正文跑在书自己的 iframe 里，
+   * 变量过不去，只能由 buildBookCSS 把它们重新声明进那份样式表。
+   */
+  const [themeTokens, setThemeTokens] = useState<Record<string, string>>({});
+  /** 插件样式表版本：book 作用域的那些要重算正文样式（css() 本身不是响应式的） */
+  const [pluginStyleVersion, setPluginStyleVersion] = useState(0);
   const [dbReady, setDbReady] = useState(false);
   const bookIdRef = useRef<string | null>(null);
   const savedLocRef = useRef<unknown>(null);
@@ -772,6 +779,37 @@ export default function App() {
   );
   const toolRegistry = runtime.tools;
 
+  /**
+   * P5 外观权限（app 作用域）：插件插的样式表写进 <head> 的一个 <style>。
+   * 内容随账本重算，所以插件卸载 / 撤销授权后样式**立刻**消失，不留残影。
+   */
+  useEffect(() => {
+    const el = document.createElement("style");
+    el.setAttribute("data-air", "plugin-styles");
+    document.head.appendChild(el);
+    const apply = () => {
+      el.textContent = runtime.pluginStyles.css("app");
+      setPluginStyleVersion(runtime.pluginStyles.version());
+    };
+    apply();
+    const off = runtime.pluginStyles.onChange(apply);
+    return () => {
+      off();
+      el.remove();
+    };
+  }, [runtime]);
+
+  /**
+   * 正文样式 = 内置排版 + 插件 token 覆盖 + 插件 book 作用域样式表。
+   * 三者拼在一起才交给引擎（书内是独立 document，外面的 CSS 一律进不去）。
+   */
+  const bookCss = useMemo(() => {
+    const base = buildBookCSS(typo, theme, themeTokens);
+    const pluginBook = runtime.pluginStyles.css("book");
+    return pluginBook ? base + "\n\n" + pluginBook : base;
+    // pluginStyleVersion 只是让"插件刚插了样式"也能重算（css() 不是响应式的）
+  }, [typo, theme, themeTokens, pluginStyleVersion, runtime]);
+
   /** 某个插件挂的 UI 渲染崩了：内核会把它从格子里摘掉，这里只负责说出来 */
   const onSlotError = useCallback((slot: string, entry: SlotEntry, error: unknown) => {
     console.error("[slot] " + slot + " 的「" + (entry.label ?? entry.owner) + "」渲染失败，已从格子里摘掉", error);
@@ -836,6 +874,8 @@ export default function App() {
         if (v === undefined) root.removeProperty(name);
         else root.setProperty(name, v);
       }
+      // 正文那三色不过 documentElement（书内是另一个 document），所以另存一份交给 buildBookCSS
+      setThemeTokens(resolved);
     };
     apply();
     const off = runtime.themeOverrides.onChange(apply);
@@ -928,11 +968,11 @@ export default function App() {
     }
   }, [flow, typo, stage, loadContextFor]);
 
-  // 排版参数变化 → 重新注入样式
+  // 排版参数 / 主题 / 插件样式变化 → 重新注入样式
   useEffect(() => {
     if (!bookName) return;
-    handleRef.current?.setStyles(buildBookCSS(typo, theme));
-  }, [typo, theme, bookName]);
+    handleRef.current?.setStyles(bookCss);
+  }, [bookCss, bookName]);
 
   useEffect(() => {
     handleRef.current?.setFlow(flow);

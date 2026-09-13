@@ -526,6 +526,74 @@ async function makeUiHarness(pluginId: string, version: string, granted: Capabil
   const rollback = await call("plugin_run", { pluginId: "ai.left-pages", packageId });
   check("对旧 packageId 再 run = 回滚", rollback.outcome.ok && (rollback.outcome.value as { version: string }).version === "1.0.0", JSON.stringify(rollback.outcome));
 
+  // — P5 前置服务：define 里带 inject，依赖没到先 park（PENDING），提供方上线后自动继续 —
+  {
+    const consumerId = "ai.p5-consumer";
+    const upstreamId = "ai.p5-upstream";
+    const definedConsumer = await call("plugin_define", {
+      pluginId: consumerId,
+      name: "依赖上游的探针",
+      purpose: "测试：声明前置服务 plugin.p5.stats，读它的数据并渲染。",
+      main: "",
+      ui: "function apply(ctx) { var s = ctx.get('plugin.p5.stats'); ctx.provide('plugin.p5.derived', { minutes: s.minutes }); }",
+      inject: ["plugin.p5.stats"],
+    });
+    check("plugin_define 接受 inject", definedConsumer.outcome.ok, JSON.stringify(definedConsumer.outcome));
+    check(
+      "define 回执里带 inject（作者能确认声明进去了）",
+      definedConsumer.outcome.ok && JSON.stringify((definedConsumer.outcome.value as { inject: string[] }).inject) === '["plugin.p5.stats"]',
+      JSON.stringify(definedConsumer.outcome.ok ? (definedConsumer.outcome.value as { inject: string[] }).inject : null),
+    );
+    const consumerRun = await call("plugin_run", { pluginId: consumerId });
+    const consumerState = consumerRun.outcome.ok ? (consumerRun.outcome.value as { state: string; next: string }) : { state: "?", next: "" };
+    check("提供方不在时 run 停在 PENDING（**不是** FAILED）", consumerState.state === "PENDING", JSON.stringify(consumerState));
+    check("回执说清「这是正常状态、在等前置服务」", consumerState.next.includes("前置服务"), consumerState.next);
+
+    // 非法名字：宿主服务走不了这条门（否则等于绕过能力门禁）
+    const badInject = await call("plugin_define", {
+      pluginId: "ai.p5-bad-inject",
+      name: "坏依赖",
+      purpose: "测试：inject 写了宿主服务名，必须在 define 阶段就被拒。",
+      main: "function apply() {}",
+      inject: ["db"],
+    });
+    check("inject 写了宿主服务名 → define 阶段被拒", !badInject.outcome.ok && JSON.stringify(badInject.outcome).includes("plugin."), JSON.stringify(badInject.outcome));
+
+    // 提供方上线 → 消费方自动继续（不需要再 run 一次）
+    const definedUpstream = await call("plugin_define", {
+      pluginId: upstreamId,
+      name: "上游数据",
+      purpose: "测试：提供 plugin.p5.stats 这个数据服务。",
+      main: "function apply(ctx) { ctx.provide('plugin.p5.stats', { minutes: 128 }); }",
+    });
+    check("定义上游包", definedUpstream.outcome.ok, JSON.stringify(definedUpstream.outcome));
+    const upstreamRun = await call("plugin_run", { pluginId: upstreamId });
+    check("上游 ACTIVE", upstreamRun.outcome.ok && (upstreamRun.outcome.value as { state: string }).state === "ACTIVE", JSON.stringify(upstreamRun.outcome));
+    for (let i = 0; i < 60 && runtime.plugins().find((p) => p.id === consumerId)?.state !== "ACTIVE"; i++) {
+      await runtime.container.settle();
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const consumerAfter = runtime.plugins().find((p) => p.id === consumerId);
+    check("提供方挂上后消费方自动 ACTIVE", consumerAfter?.state === "ACTIVE", JSON.stringify(consumerAfter));
+    // 消费方把读到的数据派生成了自己的服务 —— 「真的拿到了」这件事要能被观察，而不是只看状态
+    const derived = runtime.container.ctx.get<{ minutes: number }>("plugin.p5.derived");
+    check("消费方真的读到了上游的数据（并把它派生成新服务）", derived?.minutes === 128, JSON.stringify(derived));
+
+    // 导出包里带着依赖：不然贴给别人之后依赖会静默消失
+    const bundle = await runtime.container.ctx.get<{ exportBundle(id: string): Promise<{ inject?: string[] }> }>("plugins")!.exportBundle(consumerId);
+    check("导出包带着 inject", JSON.stringify(bundle.inject) === '["plugin.p5.stats"]', JSON.stringify(bundle.inject));
+
+    // 上游卸载 → 消费方 park 回去（不是崩掉、也不是留在 ACTIVE 假装没事）
+    await runtime.unload(upstreamId);
+    for (let i = 0; i < 60 && runtime.plugins().find((p) => p.id === consumerId)?.state === "ACTIVE"; i++) {
+      await runtime.container.settle();
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    check("上游卸载后消费方 park 回 PENDING", runtime.plugins().find((p) => p.id === consumerId)?.state === "PENDING", JSON.stringify(runtime.plugins().find((p) => p.id === consumerId)));
+    await dev.stop(consumerId);
+    await dev.stop(upstreamId);
+  }
+
   // — 工具层的错误路径 —
   const badArgs = await call("plugin_define", { pluginId: "x.y", name: "n", purpose: "p", main: "function apply(){ 这不是 js }" });
   check("语法错的代码在 define 阶段就被拦下（INVALID_ARGUMENTS）", !badArgs.outcome.ok && badArgs.outcome.error.code === "INVALID_ARGUMENTS", JSON.stringify(badArgs.outcome));

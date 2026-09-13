@@ -38,6 +38,7 @@ import type { AiCredentials, ReadingActivityService } from "../app/services";
 import { originOf, type NetRequestInit, type NetResponse as NetFetchResponse } from "./netFetch";
 import type { PermissionBroker, PermissionScope } from "./permissions";
 import type { SlotsService } from "../../ui/slots/types";
+import type { StyleScope, StylesService } from "../../ui/theme/styles";
 import { t } from "../../i18n";
 
 /** 每个 op 需要的能力：**每次调用都查**，所以"撤销授权立刻生效"是结构性的，不是补丁 */
@@ -59,7 +60,20 @@ export const OP_CAPABILITY: Record<string, CapabilityId> = {
   "storage.list": "storage.plugin",
   // P3.10：网络。范围检查在调用点做（目标 origin 必须被授权覆盖），见 requireCapability 的 scope 参数
   "net.fetch": "net.fetch",
+  // P5「外观权限」：注入样式表（ctx.styles.insert / clear）
+  "styles.insert": "ui.styles",
+  "styles.clear": "ui.styles",
 };
+
+/**
+ * **不靠能力**门禁的宿主操作（P5）：它们的门禁是**声明**——名字必须出现在 manifest.inject 里，
+ * 而且要读的服务必须是别的插件提供的 `plugin.*`（宿主服务各有带能力门禁的 ctx.* 门面）。
+ *
+ * 为什么单独一张表而不是给它编一个能力名：能力回答的是"用户授不授权"，而"依赖谁"由 manifest
+ * 写死、用户看得见，再叠一层授权只是让作者多点一次头（DSH 里 inject 也不走权限）。
+ * 单列一张表的好处是：**"没有能力"必须是显式的**，不能让漏写能力名悄悄变成不设防。
+ */
+export const OP_DECLARATION_ONLY = new Set(["services.get", "services.list"]);
 
 /** 需要异步完成的 op（返回 promise 给插件 await）；其余同步返回 */
 export const ASYNC_OPS = new Set([
@@ -198,6 +212,34 @@ export const QUICKJS_PRELUDE = [
   "      remove: function (key) { return call('storage.delete', { key: key }); },",
   "      keys: function () { return call('storage.list'); },",
   "    },",
+  // P5：外观权限的"够用一档"。token 只能改预设变量，而「阅读背景 / 行距 / 页边 / 自己那块 UI」
+  // 这类需求要的是 CSS 本身，所以给一段样式表 —— 仍然默认没有：要用就在 manifest 声明 ui.styles
+  // 并由用户授权；source 由宿主强制成插件 id，插件卸载时自动撤掉。
+  // P5 前置服务（照 DSH 的 inject）：读**别的插件**提供的服务（纯数据）。
+  // 只有 manifest.inject 里声明过的名字读得到 —— 声明既是依赖，也是门禁。
+  "    get: function (name) {",
+  "      if (!name || typeof name !== 'string') throw new Error('ctx.get(name) 需要服务名（形如 plugin.stats）；可用名单见 ctx.services()');",
+  "      var r = JSON.parse(String(host.getService(String(name))));",
+  "      if (r.error) throw new Error(r.error);",
+  "      return r.value;",
+  "    },",
+  "    services: function () {",
+  "      var r = JSON.parse(String(host.listServices('')));",
+  "      if (r.error) throw new Error(r.error);",
+  "      return r.value;",
+  "    },",
+  "    styles: {",
+  "      insert: function (css, options) {",
+  "        if (typeof css !== 'string' || !css.trim()) throw new Error('ctx.styles.insert(css, options?) 需要一段非空的 CSS 文本');",
+  "        var scope = options && options.scope !== undefined ? String(options.scope) : 'app';",
+  "        must(host.stylesInsert(JSON.stringify({ css: css, scope: scope })));",
+  "      },",
+  "      clear: function () {",
+  "        var r = JSON.parse(String(host.stylesClear('')));",
+  "        if (r.error) throw new Error(r.error);",
+  "        return r.value;",
+  "      },",
+  "    },",
   "    theme: {",
   "      overrideTokens: function (tokens) {",
   "        if (!tokens || typeof tokens !== 'object') throw new Error('ctx.theme.overrideTokens 需要 { \"--air-accent\": \"#c00\" }（值可以是字符串，也可以按主题给 { light, sepia, dark }）');",
@@ -301,6 +343,11 @@ export type DynamicHostServices = {
    * 插件拿不到它（既不进沙箱，也不出现在任何 inspect 输出里）。
    */
   aiCredentials?: () => AiCredentials | null;
+  /**
+   * P5 前置服务：当前可依赖的 **插件服务**名单（只含 `plugin.*`）。
+   * 宿主服务不在这里 —— 它们各有带能力门禁的 ctx.* 门面，沙箱不该有第二条路。
+   */
+  serviceNames?: () => string[];
   /** 插件自己的存储（宿主按 pluginId 隔离） */
   storage: {
     get(pluginId: string, key: string): Promise<unknown>;
@@ -328,6 +375,11 @@ export type DynamicPluginSpec = {
   uiCode?: string;
   /** manifest 里声明的能力（授权检查的依据） */
   capabilities: CapabilityId[];
+  /**
+   * manifest 里声明的前置服务（P5）：`ctx.get(name)` 只认这份清单里的名字。
+   * 声明本身就是"我要依赖谁"，容器据此 park/唤醒；沙箱侧再用它做第二道校验。
+   */
+  inject?: string[];
 };
 
 export type QuickJsRuntimeOptions = {
@@ -389,6 +441,12 @@ export class DynamicPluginInstance {
   private uiSeq = 0;
   /** P5 计时器：key = 给插件的 handle，value = 取消函数。卸载时统一清（interval 最易泄漏） */
   private timers = new Map<string, () => void>();
+  /**
+   * P5 外观：本实例加过的样式表 / 主题覆盖层的 disposer。
+   * 与计时器一样**卸载时兜底撤掉**，不去赌"ctx 属于哪个 fiber"——插件卸载后页面上还留着
+   * 它插的 CSS 是最难查的一类残影（样式继续生效，但已经没有代码能解释它从哪来）。
+   */
+  private appearanceDisposers: Disposer[] = [];
   private timerSeq = 0;
   /** 正在停止（跑 disposer 期间）：不再接受新的外部调用，但插件自己的清理还能用宿主 API */
   private stopping = false;
@@ -682,9 +740,11 @@ export class DynamicPluginInstance {
         try {
           // 能力检查放在**同步边界**：异步 op 也要同步就报错，
           // 否则插件不 await 时错误只会在 promise 里悄悄发生（实测踩到）
-          const capability = OP_CAPABILITY[op];
-          if (!capability) throw new Error("未知的宿主操作：" + op);
-          this.requireCapability(capability, "调用 " + op);
+          if (!OP_DECLARATION_ONLY.has(op)) {
+            const capability = OP_CAPABILITY[op];
+            if (!capability) throw new Error("未知的宿主操作：" + op);
+            this.requireCapability(capability, "调用 " + op);
+          }
           // 说明：宿主函数**不向 VM 抛异常**，而是把错误放进返回值（__aireaderError），
           // 由 prelude 在 JS 侧 throw —— 宿主抛出的异常会在引擎里留下我们碰不到的句柄（实测泄漏）。
           if (ASYNC_OPS.has(op)) {
@@ -945,6 +1005,55 @@ export class DynamicPluginInstance {
       }),
     );
 
+    // P5 外观权限：注入样式表。校验（空 / 作用域 / @import / 张数与体积上限）全在样式核心里，
+    // 这里只负责把异常变成返回值里的错误串 —— 与别的宿主函数同一个模式。
+    // P5 前置服务：读别的插件提供的纯数据服务（getService 内部查 manifest.inject 声明）
+    set(
+      "getService",
+      vm.newFunction("hostGetService", (nameHandle) => {
+        try {
+          return vm.newString(JSON.stringify({ value: this.getPluginService(String(vm.dump(nameHandle))) }));
+        } catch (e) {
+          return vm.newString(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }));
+        }
+      }),
+    );
+
+    set(
+      "listServices",
+      vm.newFunction("hostListServices", () => {
+        try {
+          return vm.newString(JSON.stringify({ value: this.runtime.serviceNames() }));
+        } catch (e) {
+          return vm.newString(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }));
+        }
+      }),
+    );
+
+    set(
+      "stylesInsert",
+      vm.newFunction("hostStylesInsert", (payloadHandle) => {
+        try {
+          const payload = JSON.parse(String(vm.dump(payloadHandle)) || "{}") as { css?: string; scope?: string };
+          this.insertStyles(String(payload.css ?? ""), payload.scope);
+          return vm.newString("");
+        } catch (e) {
+          return vm.newString(String(e instanceof Error ? e.message : e));
+        }
+      }),
+    );
+
+    set(
+      "stylesClear",
+      vm.newFunction("hostStylesClear", () => {
+        try {
+          return vm.newString(JSON.stringify({ value: this.clearStyles() }));
+        } catch (e) {
+          return vm.newString(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }));
+        }
+      }),
+    );
+
     set(
       "uiRefresh",
       vm.newFunction("hostUiRefresh", (idHandle) => {
@@ -964,7 +1073,59 @@ export class DynamicPluginInstance {
     this.requireCapability("ui.theme", "覆盖主题");
     const theme = this.ctx.get<{ overrideTokens?: (source: string, tokens: Record<string, never>) => unknown }>("theme");
     if (!theme?.overrideTokens) throw new Error("宿主没有可覆盖的主题服务");
-    theme.overrideTokens(this.spec.pluginId, tokens);
+    const off = theme.overrideTokens(this.spec.pluginId, tokens);
+    if (typeof off === "function") this.appearanceDisposers.push(off as Disposer);
+  }
+
+  /**
+   * 读别的插件提供的服务（P5 前置服务）。
+   *
+   * 三道门：① 名字必须在 manifest.inject 里声明过（声明=依赖，也=门禁）；
+   * ② 只认 `plugin.*` —— 宿主服务各有带能力门禁的 ctx.* 门面，这里不能成为后门；
+   * ③ 值必须是**纯数据**（函数过不了 realm，硬塞会得到 undefined 这种最难查的失败，所以直接拒）。
+   */
+  private getPluginService(name: string): unknown {
+    if (!/^plugin\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(name)) {
+      throw new Error(
+        "ctx.get 只能读别的插件提供的服务（名字形如 plugin.stats）：宿主能力请用对应的 ctx.* 门面。收到的是「" + name + "」",
+      );
+    }
+    const declared = this.spec.inject ?? [];
+    if (!declared.includes(name)) {
+      throw new Error(
+        "服务 " + name + " 不在本插件的 manifest.inject 里：读别人的服务要先声明依赖（当前声明了：" +
+          (declared.length ? declared.join(" / ") : "（无）") +
+          "）。用 ctx.services() 看现在有哪些可依赖",
+      );
+    }
+    const value = this.ctx.get(name);
+    if (value === undefined) {
+      throw new Error("服务 " + name + " 现在不存在：提供它的插件还没挂上，或者已经被卸载了");
+    }
+    const json = JSON.stringify(value);
+    if (json === undefined) throw new Error("服务 " + name + " 的值没法序列化成 JSON（函数/undefined 过不了沙箱边界）");
+    return JSON.parse(json);
+  }
+
+  /**
+   * 注入样式表（P5 外观权限）：source 强制成插件 id；宿主侧的 styles 是**按上下文绑定**的服务，
+   * 它把 disposer 挂到调用者（插件自己）的 fiber 上 —— 卸载 → 样式自动消失，作者不需要记得清理。
+   */
+  private insertStyles(css: string, scope?: string): void {
+    this.requireCapability("ui.styles", "注入样式");
+    const styles = this.ctx.get<StylesService>("styles");
+    if (!styles?.insert) throw new Error("宿主没有样式服务：ctx.styles 在这个构建里不可用");
+    const fixed: StyleScope = scope === undefined || scope === "" ? "app" : (scope as StyleScope);
+    const off = styles.insert(this.spec.pluginId, css, fixed);
+    if (typeof off === "function") this.appearanceDisposers.push(off);
+  }
+
+  /** 撤掉本插件插过的全部样式表（撤不掉别人的：source 由宿主钉死） */
+  private clearStyles(): number {
+    this.requireCapability("ui.styles", "清除样式");
+    const styles = this.ctx.get<StylesService>("styles");
+    if (!styles?.clear) throw new Error("宿主没有样式服务：ctx.styles 在这个构建里不可用");
+    return styles.clear(this.spec.pluginId);
   }
 
   /** 注册一次界面：渲染函数存到 JS 侧，组件由宿主侧的桥工厂造出来 */
@@ -1410,6 +1571,14 @@ export class DynamicPluginInstance {
       }
     }
     this.timers.clear();
+    // P5：再撤掉本插件加过的外观层（ctx.effect 那条路也会撤；这里是兜底，两个 core 的 disposer 都幂等）
+    for (const off of this.appearanceDisposers.splice(0).reverse()) {
+      try {
+        off();
+      } catch {
+        /* 撤样式失败不该影响卸载 */
+      }
+    }
     try {
       const result = this.vm.evalCode("(async () => await __aireaderRunDisposers())()", this.spec.pluginId + "/dispose");
       if (result.error) {
@@ -1497,6 +1666,18 @@ export class QuickJsRuntime {
     return this.nowValue();
   }
 
+  /**
+   * P5 前置服务：现在有哪些**插件服务**可依赖（只列 plugin.*）。
+   * 宿主服务的名单不进沙箱 —— 那是宿主内部结构，插件要什么能力走 ctx.* 门面就够。
+   */
+  serviceNames(): string[] {
+    try {
+      return this.services.serviceNames?.() ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   logFn(pluginId: string, level: string, message: string): void {
     this.services.log?.(pluginId, level, message);
     this.logOutput(level === "error" ? "error" : "info", "[" + pluginId + "] " + message);
@@ -1574,8 +1755,14 @@ export function createDynamicPlugin(opts: {
   /** 读 ui.entry 文件内容（可选：纯宿主半的包没有这一半） */
   readUiCode?: () => Promise<string>;
   log?: (level: "info" | "warn" | "error", message: string, error?: unknown) => void;
-}): { apply: (ctx: Context, config: unknown) => Promise<Disposer> } {
+}): { inject: string[]; apply: (ctx: Context, config: unknown) => Promise<Disposer> } {
   return {
+    /**
+     * P5 前置服务：把 manifest.inject 一起交出去，容器才能"依赖没到就 park"。
+     * 放在这里（而不是让加载器另拼一份）是为了让**两半看到同一份声明**：
+     * 沙箱里的 ctx.get 与容器的等待条件不会各说各话。
+     */
+    inject: opts.spec.inject ?? [],
     async apply(ctx: Context, config: unknown): Promise<Disposer> {
       const runtime = await opts.runtime();
       const code = await opts.readCode();

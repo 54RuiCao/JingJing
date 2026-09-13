@@ -66,9 +66,26 @@ function apply(ctx, config) {
 | `ctx.effect(fn)` | — | 注册清理；回调必须同步，卸载时调用返回的函数 |
 | `ctx.slots.register(opts, render)` | `ui.slot` | 挂一块界面（见下） |
 | `ctx.slots.refresh()` | `ui.slot` | 让这块界面重渲染 |
-| `ctx.theme.overrideTokens({...})` | `ui.theme` | 覆盖主题颜色（只能覆盖 `--air-bg/panel/text/sub/border/hover/accent/cover-from/cover-to`；值可写成 `{ light, sepia, dark }`）。返回的 disposer 自动跟着插件卸载 |
+| `await ctx.reader.activity()` | `reader.read` | 宿主采集的**阅读活动**（每天读了多少秒 / 翻了多少页）：`{ today, todaySeconds, todayTurns, days, totalSeconds, activeDays, streak, longestStreak, bestDay }` |
+| `await ctx.net.fetch(url, opts)` | `net.fetch` | **宿主代发** HTTP。域名必须在 manifest 的 `network.origins` 里声明并被授权 |
+| （与 `net.fetch` 一起声明） | `ai.credentials` | 对你**已配置的 AI 服务**发 GET/HEAD 时宿主自动代填 `Authorization`（Key 不进沙箱） |
+| `ctx.timeout(fn, ms) / ctx.interval(fn, ms) / ctx.clear(handle)` | — | 宿主定时器（沙箱里**没有** `setTimeout`）；卸载时宿主统一清掉 |
+| `ctx.env() / ctx.crypto.randomUUID() / ctx.text.*` | — | 宿主环境事实（平台 / 触摸 / 视口 / 主题）、随机 id、文件名与截断小工具 |
+| `ctx.theme.overrideTokens({...})` | `ui.theme` | 覆盖主题颜色（可覆盖 `--air-bg/panel/text/sub/border/hover/accent/cover-from/cover-to` 与**正文三色** `--air-book-bg / --air-book-text / --air-book-link`；值可写成 `{ light, sepia, dark }`）。值只能是颜色这类**单值**（带分号 / 花括号会被拒） |
+| `ctx.styles.insert(css, { scope })` | `ui.styles` | 注入一段 CSS：`scope:'app'` 改外壳、`scope:'book'` 改**书籍正文**（排版 / 页边 / 阅读背景）。卸载时自动撤；`ctx.styles.clear()` 主动撤掉自己插的 |
+| `ctx.get('plugin.名字')` · `ctx.services()` | manifest 的 `inject` | 读**别的插件**提供的服务（纯数据）。要先在 manifest 里写 `inject: ['plugin.stats']` 才读得到；只认 `plugin.` 前缀（宿主能力走 `ctx.*` 门面）。依赖没到不算失败：容器让插件先 park，提供方挂上后自动继续 |
 
-没有列的就不存在：事件面（`ctx.on`）、`llm.chat`、`fs.*`、`net.fetch` 都还没接。
+没有列的就不存在：事件面（`ctx.on`）还没接；`llm.chat` / `fs.read` / `fs.write` 只有词表。
+
+### 改外观：颜色、阅读背景、排版
+
+按代价从低到高选：
+
+1. **只改颜色**：`ctx.theme.overrideTokens({ '--air-book-bg': '#f6f0e2' })`。`--air-*` 管应用外壳，`--air-book-bg / --air-book-text / --air-book-link` 管正文（阅读背景就在这里）。
+2. **改排版 / 页边 / 正文细节**：`ctx.styles.insert('body { line-height: 2 }', { scope: 'book' })`。正文里也能用 `var(--air-bg)` 这些变量。
+3. **自己那块界面 / 产品没提供的样式**：同一个函数，`{ scope: 'app' }`（默认）。给自己挂的节点一个 `className`，再用 CSS 选中它。
+
+**正文在书自己的 iframe 里，是另一个 document**：外壳的 CSS 与 CSS 变量都进不去 —— 这就是「改了颜色没反应」的根因，所以别在 `scope:'app'` 里写 `body` 指望改到正文。样式里不许 `@import`、也不许远程 `url(...)`（会绕开 `net.fetch` 的域名授权，宿主直接拒）：要图标 / 字体请先 `ctx.net.fetch` 取回再内联，或用 data: URI。单插件 ≤16 张表、合计 ≤64KB。
 
 ## UI 半：声明式界面，不是 React
 
@@ -136,8 +153,8 @@ ctx.slots.register({
 
 ## 能力词表
 
-`reader.read` · `reader.annotate` · `reader.navigate` · `storage.plugin` · `log.write` · `ui.slot` · `ui.theme`
-（已接门面）；`llm.chat` · `fs.read` · `fs.write` · `net.fetch` 只有词表，声明了也不会被授予。
+`reader.read` · `reader.annotate` · `reader.navigate` · `storage.plugin` · `log.write` · `ui.slot` · `ui.theme` · `ui.styles` · `net.fetch` · `ai.credentials`
+（已接门面）；`llm.chat` · `fs.read` · `fs.write` 只有词表，声明了也不会被授予。
 
 授权绑 `(插件 id, 版本, 能力)`：面板里「授权（只此版本）」只覆盖当前版本，换版本要重新点头；「含后续版本」跨版本。
 撤销授权后插件**立刻停**。

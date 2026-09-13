@@ -22,13 +22,17 @@ import { setLangPref } from "../app/src/i18n";
 // 断言写的是中文默认文案：把界面语言钉死，别受开发机系统语言影响
 setLangPref("zh");
 import { PermissionBroker, createMemoryPermissionStore } from "../app/src/core/plugin/permissions";
-import { QuickJsRuntime, createDynamicPlugin, QUICKJS_PRELUDE, OP_CAPABILITY } from "../app/src/core/plugin/runtime-quickjs";
+import { QuickJsRuntime, createDynamicPlugin, QUICKJS_PRELUDE, OP_CAPABILITY, OP_DECLARATION_ONLY } from "../app/src/core/plugin/runtime-quickjs";
 import { ToolRegistry } from "../app/src/ai/tools/registry";
 import { SlotCore, createSlotsService } from "../app/src/ui/slots/index";
 import { contextBoundService } from "../app/src/core/service/index";
 import type { SlotsService } from "../app/src/ui/slots/index";
 import type { ToolHost } from "../app/src/ai/tools/host";
 import type { CapabilityId } from "../app/src/core/plugin/manifest";
+import { createStyleCore, MAX_SHEETS_PER_PLUGIN, type StylesService } from "../app/src/ui/theme/styles";
+import { createThemeOverrideCore } from "../app/src/ui/theme/overrides";
+import { buildBookCSS, defaultTypography } from "../app/src/reader/bookStyles";
+import { THEMES } from "../app/src/reader/themes";
 
 // ToolRegistry.execute 的超时用了 window.setTimeout；node 下补一个最小 Window 形状
 (globalThis as any).window = globalThis;
@@ -87,6 +91,10 @@ type Harness = {
   logs: string[];
   storage: Map<string, unknown>;
   grants: { pluginId: string; version: string; capability: CapabilityId; mode: "once" | "always" }[];
+  /** P5 外观权限：样式表账本 */
+  styleCore: ReturnType<typeof createStyleCore>;
+  /** P5 外观权限：主题 token 覆盖层 */
+  themeOverrides: ReturnType<typeof createThemeOverrideCore>;
 };
 
 async function makeHarness(
@@ -131,6 +139,26 @@ async function makeHarness(
     description: "测试用席位（与宿主 ui-layout 声明的一致）",
   });
   container.ctx.provide("slots", contextBoundService<SlotsService>((c) => createSlotsService(slotCore, c)));
+  /**
+   * P5 外观权限：真的接上 theme 覆盖层与样式表账本（不是桩）——
+   * 校验规则、token 形状限制、卸载撤销都因此被这一套测到。
+   * 两份都按上下文绑定，与 runtime.ts 里给插件的门面同一个形状。
+   */
+  const themeOverrides = createThemeOverrideCore();
+  container.ctx.provide(
+    "theme",
+    contextBoundService<{ overrideTokens(source: string, tokens: Record<string, never>): unknown }>((c) => ({
+      overrideTokens: (source, tokens) => c.effect(() => themeOverrides.override(source, tokens), "theme-override:" + source),
+    })),
+  );
+  const styleCore = createStyleCore();
+  container.ctx.provide(
+    "styles",
+    contextBoundService<StylesService>((c) => ({
+      insert: (source, css, scope) => c.effect(() => styleCore.insert(source, css, scope), "plugin-styles:" + source),
+      clear: (source) => styleCore.clear(source),
+    })),
+  );
   const runtime = await QuickJsRuntime.create({
     permissions: broker,
     services: {
@@ -182,12 +210,14 @@ async function makeHarness(
       },
       // 宿主自己配的 AI 凭据（P3.11）：Key **只在这一层**，不经过 VM
       aiCredentials: () => ({ origin: "https://api.deepseek.com", hasKey: true, authorization: "Bearer sk-host-side-key" }),
+      // P5 前置服务：可依赖的插件服务清单（与 runtime.ts 同一个取法：容器账本里 plugin.* 那些）
+      serviceNames: () => container.diagnostics().services.filter((n) => n.startsWith("plugin.")).sort(),
     },
     log: (level, message) => logs.push("runtime:" + level + ":" + message),
     budgetMs: opts.budgetMs ?? 3000,
     memoryLimitBytes: opts.memoryLimitBytes ?? 16 * 1024 * 1024,
   });
-  return { runtime, broker, container, tools, logs, storage, grants };
+  return { runtime, broker, container, tools, logs, storage, grants, styleCore, themeOverrides };
 }
 
 /** 一段最典型的插件代码：读进度、写存储、注册工具、注册带 disposer 的 effect */
@@ -228,6 +258,29 @@ const GOOD_CODE = [
   "  return function () { ctx.log('apply 返回的 disposer 跑了'); };",
   "}",
 ].join("\n");
+
+/** P5 外观权限：跑一段插件代码，返回 { err, ok } */
+async function runPluginCode(
+  h: Harness,
+  code: string,
+  capabilities: CapabilityId[] = [],
+): Promise<{ err: string; ok: boolean }> {
+  const instance = h.runtime.createInstance({ pluginId: PLUGIN_ID, version: VERSION, code, capabilities }, h.container.ctx);
+  try {
+    await instance.load();
+    await instance.apply({});
+    return { err: "", ok: true };
+  } catch (e) {
+    return { err: String(e instanceof Error ? e.message : e), ok: false };
+  } finally {
+    await instance.stop();
+  }
+}
+
+/** 把插件代码包进 apply */
+function wrap(body: string): string {
+  return ["function apply(ctx) {", body, "}"].join("\n");
+}
 
 // ---------- 1) 沙箱事实 + 正常加载 ----------
 
@@ -798,6 +851,242 @@ const GOOD_CODE = [
   await h.container.dispose();
 }
 
+// ---------- 9) P5「外观权限」：改得了颜色（含阅读背景），也撤得掉 ----------
+
+{
+  const h = await makeHarness({ capabilities: ["ui.styles", "ui.theme"] });
+  const code = wrap(
+    [
+      "  ctx.styles.insert('#air-test { color: red }', { scope: 'app' });",
+      "  ctx.styles.insert('body { background: #101418; }', { scope: 'book' });",
+      "  ctx.theme.overrideTokens({ '--air-book-bg': '#101418' });",
+    ].join("\n"),
+  );
+  const instance = h.runtime.createInstance(
+    { pluginId: PLUGIN_ID, version: VERSION, code, capabilities: ["ui.styles", "ui.theme"] },
+    h.container.ctx,
+  );
+  await instance.load();
+  await instance.apply({});
+  check("app 作用域的样式进了账本", h.styleCore.css("app").includes("#air-test { color: red }"), h.styleCore.css("app"));
+  check("book 作用域的样式单独一份（正文用）", h.styleCore.css("book").includes("body { background: #101418; }"), h.styleCore.css("book"));
+  check("两个作用域互不串门", !h.styleCore.css("app").includes("background: #101418; }"));
+  check("账本里留着「谁插的」（出问题能从 DOM 里认出来）", h.styleCore.css("app").includes("/* " + PLUGIN_ID + " */"), h.styleCore.css("app"));
+  check("插件插了两张表（诊断数得出来）", h.styleCore.list().length === 2, JSON.stringify(h.styleCore.list()));
+
+  // 用户报的那件事：**阅读背景改不了**。根因是正文在书自己的 iframe 里，外壳变量过不去。
+  const resolved = h.themeOverrides.resolve("sepia");
+  check("token 覆盖层解出了正文背景色", resolved["--air-book-bg"] === "#101418", JSON.stringify(resolved));
+  const withPlugin = buildBookCSS(defaultTypography, THEMES.sepia, resolved);
+  check("正文样式表真的用上了插件给的背景色", withPlugin.includes("background: #101418"), withPlugin.slice(0, 240));
+  check("正文文档里也声明了变量（注入正文的插件 CSS 能用 var()）", withPlugin.includes("--air-book-bg: #101418;"));
+  const withoutPlugin = buildBookCSS(defaultTypography, THEMES.sepia);
+  check(
+    "没插件覆盖时正文背景回到主题自带色",
+    withoutPlugin.includes("background: " + THEMES.sepia.book.bg),
+    withoutPlugin.slice(0, 240),
+  );
+
+  await instance.stop();
+  check("卸载后 app 样式被撤掉", h.styleCore.css("app") === "", h.styleCore.css("app"));
+  check("卸载后 book 样式被撤掉", h.styleCore.css("book") === "", h.styleCore.css("book"));
+  check("卸载后 token 覆盖层也空了", Object.keys(h.themeOverrides.resolve("sepia")).length === 0, JSON.stringify(h.themeOverrides.resolve("sepia")));
+  await h.runtime.dispose();
+  await h.container.dispose();
+}
+
+// ---------- 10) 外观权限的边界：门禁 / 禁联网 / 张数与体积 / 撤销立刻生效 ----------
+
+{
+  // ① 没声明 ui.styles：插入必须失败，且错误要说清是哪个能力
+  const hDenied = await makeHarness({ capabilities: ["log.write"] });
+  const denied = await runPluginCode(hDenied, wrap("  ctx.styles.insert('#a{}');"), ["log.write"]);
+  check("没授权 ui.styles 时插入样式会失败", !denied.ok && denied.err.includes("ui.styles"), denied.err);
+  check("被拒时账本里什么都没有（不留半张表）", hDenied.styleCore.css() === "", hDenied.styleCore.css());
+  await hDenied.runtime.dispose();
+  await hDenied.container.dispose();
+
+  // 下面是"授权了 ui.styles 之后"的边界（门禁已经过了，才谈得上规则）。
+  // log.write 也给上：ctx.log 本身是要授权的（日志是给用户看的，不是白送的输出通道）。
+  const h = await makeHarness({ capabilities: ["ui.styles", "ui.theme", "log.write"] });
+
+  // ② @import / 远程 url(...)：会绕开 net.fetch 的域名授权，直接拒
+  const imp = await runPluginCode(h, wrap("  ctx.styles.insert(\"@import url('https://evil.test/x.css');\");"));
+  check("样式里的 @import 被拒", !imp.ok && imp.err.includes("@import"), imp.err);
+  const remote = await runPluginCode(h, wrap("  ctx.styles.insert('body { background: url(https://evil.test/p.png) }');"));
+  check("样式里的远程 url(...) 被拒", !remote.ok && remote.err.includes("url"), remote.err);
+  const dataUri = await runPluginCode(h, wrap("  ctx.styles.insert(\"body { background: url(data:image/png;base64,AAA) }\");"));
+  check("data: URI 是允许的（内联资源不算联网）", dataUri.ok, dataUri.err);
+
+  // ③ 作用域写错：报错要列出可用值，别只说"错了"
+  const badScope = await runPluginCode(h, wrap("  ctx.styles.insert('body{}', { scope: 'reader' });"));
+  check("未知 scope 被拒且列出可用值", !badScope.ok && badScope.err.includes("reader") && badScope.err.includes("app"), badScope.err);
+
+  // ④ 张数 / 体积上限
+  const many = await runPluginCode(
+    h,
+    wrap(
+      "  for (var i = 0; i < " + (MAX_SHEETS_PER_PLUGIN + 1) + "; i++) { ctx.styles.insert('#' + i + '{}'); }",
+    ),
+  );
+  check(
+    "超过单插件张数上限被拒（" + MAX_SHEETS_PER_PLUGIN + " 张）",
+    !many.ok && many.err.includes(String(MAX_SHEETS_PER_PLUGIN + 1)),
+    many.err,
+  );
+  const huge = await runPluginCode(h, wrap("  ctx.styles.insert('#' + new Array(70000).join('a') + '{}');"));
+  check("超大样式表被拒", !huge.ok && huge.err.includes("65536"), huge.err);
+
+  // ⑤ ctx.styles.clear()：撤自己的，返回撤掉几张
+  const cleared = await runPluginCode(
+    h,
+    wrap(
+      [
+        "  ctx.styles.insert('#one{}');",
+        "  ctx.styles.insert('#two{}', { scope: 'book' });",
+        "  ctx.log('cleared=' + ctx.styles.clear());",
+      ].join("\n"),
+    ),
+  );
+  check("ctx.styles.clear() 跑得通", cleared.ok, cleared.err);
+  check("clear 之后账本空了", h.styleCore.css() === "", h.styleCore.css());
+  check("clear 返回撤掉的张数", h.logs.some((l) => l.includes("cleared=2")), h.logs.join(" | "));
+
+  // ⑥ token 值的形状：值会被原样拼进 CSS，能拆开语句的一律拒
+  const unsafe = await runPluginCode(
+    h,
+    wrap("  ctx.theme.overrideTokens({ '--air-book-bg': 'red; } body { display: none' });"),
+  );
+  check("token 值里塞 CSS 语句被拒", !unsafe.ok && unsafe.err.includes("--air-book-bg"), unsafe.err);
+
+  // ⑦ 撤销授权立刻生效：授权时插得进去，撤销后同一个调用立刻失败
+  const h2 = await makeHarness({ capabilities: ["ui.styles"] });
+  const okFirst = await runPluginCode(h2, wrap("  ctx.styles.insert('#before{}');"), ["ui.styles"]);
+  check("授权时插样式成功", okFirst.ok, okFirst.err);
+  await h2.broker.revoke(PLUGIN_ID, "ui.styles");
+  const afterRevoke = await runPluginCode(h2, wrap("  ctx.styles.insert('#after{}');"), ["ui.styles"]);
+  check("撤销 ui.styles 后插入立刻失败", !afterRevoke.ok && afterRevoke.err.includes("ui.styles"), afterRevoke.err);
+  check("撤销后页面上没有它新插的东西", !h2.styleCore.css().includes("#after{}"), h2.styleCore.css());
+  await h2.runtime.dispose();
+  await h2.container.dispose();
+
+  await h.runtime.dispose();
+  await h.container.dispose();
+}
+
+// ---------- 11) P5 前置服务（inject）：读别的插件的数据，依赖没到就 park ----------
+
+{
+  const h = await makeHarness({ capabilities: ["log.write"], pluginId: "test.consumer" });
+  // 提供方：另一个插件把自己的统计当**纯数据**服务提供出来
+  h.container.ctx.provide("plugin.stats", { books: 3, minutes: 128, streak: 5 });
+  const code = (name: string, extra = "") =>
+    wrap(
+      [
+        "  ctx.log('services=' + JSON.stringify(ctx.services()));",
+        "  var v = ctx.get(" + JSON.stringify(name) + ");",
+        "  ctx.log('got=' + JSON.stringify(v));" + extra,
+      ].join("\n"),
+    );
+  const withInject = (inject: string[]) =>
+    h.runtime.createInstance(
+      { pluginId: "test.consumer", version: VERSION, code: code("plugin.stats"), capabilities: ["log.write"], inject },
+      h.container.ctx,
+    );
+
+  // ① 声明了依赖：读得到数据
+  const okInstance = withInject(["plugin.stats"]);
+  await okInstance.load();
+  await okInstance.apply({});
+  check("声明 inject 后 ctx.get 读到了别的插件的数据", h.logs.some((l) => l.includes('got={"books":3,"minutes":128,"streak":5}')), h.logs.join(" | "));
+  check("ctx.services() 只列插件服务（plugin.*）", h.logs.some((l) => l.includes('services=["plugin.stats"]')), h.logs.join(" | "));
+  await okInstance.stop();
+
+  // ② 没声明：会失败，而且错误里要给出"怎么改"（列出现在声明了什么）
+  const noDecl = withInject([]);
+  await noDecl.load();
+  let err = "";
+  try {
+    await noDecl.apply({});
+  } catch (e) {
+    err = String(e instanceof Error ? e.message : e);
+  }
+  check("没在 manifest.inject 里声明过就读不到", err.includes("manifest.inject"), err);
+  check("错误里列了当前声明（作者知道该往哪加）", err.includes("当前声明了"), err);
+  await noDecl.stop();
+
+  // ③ 宿主服务不能从这条门进来（否则等于绕过能力门禁）
+  const hostDoor = h.runtime.createInstance(
+    { pluginId: "test.consumer", version: VERSION, code: code("db"), capabilities: ["log.write"], inject: ["db"] },
+    h.container.ctx,
+  );
+  await hostDoor.load();
+  let hostErr = "";
+  try {
+    await hostDoor.apply({});
+  } catch (e) {
+    hostErr = String(e instanceof Error ? e.message : e);
+  }
+  check("ctx.get 拒绝宿主服务名（只认 plugin. 前缀）", hostErr.includes("plugin."), hostErr);
+  await hostDoor.stop();
+
+  // ④ 声明了但提供方不在：报"现在不存在"，不是静默 undefined
+  const missing = h.runtime.createInstance(
+    { pluginId: "test.consumer", version: VERSION, code: code("plugin.nope"), capabilities: ["log.write"], inject: ["plugin.nope"] },
+    h.container.ctx,
+  );
+  await missing.load();
+  let missingErr = "";
+  try {
+    await missing.apply({});
+  } catch (e) {
+    missingErr = String(e instanceof Error ? e.message : e);
+  }
+  check("提供方不在时报「现在不存在」而不是给 undefined", missingErr.includes("现在不存在"), missingErr);
+  await missing.stop();
+  await h.runtime.dispose();
+  await h.container.dispose();
+}
+
+// ---------- 12) 前置服务与容器的 park 语义（依赖没到 = 等着，不是失败） ----------
+
+{
+  const h = await makeHarness({ capabilities: ["log.write"], pluginId: "test.waiter" });
+  const plugin = createDynamicPlugin({
+    runtime: async () => h.runtime,
+    spec: { pluginId: "test.waiter", version: VERSION, capabilities: ["log.write"], inject: ["plugin.upstream"] },
+    readCode: async () => wrap("  ctx.log('依赖到位了：' + JSON.stringify(ctx.get('plugin.upstream')));"),
+    log: () => {},
+  });
+  const fiber = h.container.ctx.plugin(
+    { name: "test.waiter", inject: ["plugin.upstream"], apply: (ctx, config) => plugin.apply(ctx, config) },
+    {},
+  );
+  await fiber.ready;
+  check("依赖不在时 fiber 停在 PENDING（不是 FAILED）", fiber.state === "PENDING", fiber.state);
+  check("停在 PENDING 时插件代码还没跑", !h.logs.some((l) => l.includes("依赖到位了")), h.logs.join(" | "));
+
+  // 提供方上线 → 自动被唤醒（这是"前置服务"的价值：不需要插件自己轮询/兜底）
+  const providerFiber = h.container.ctx.plugin(
+    { name: "test.upstream", apply: (ctx) => ctx.provide("plugin.upstream", { ready: true }) },
+    {},
+  );
+  await providerFiber.ready;
+  for (let i = 0; i < 40 && fiber.state !== "ACTIVE"; i++) await new Promise((r) => setTimeout(r, 25));
+  check("提供方挂上后自动变 ACTIVE", fiber.state === "ACTIVE", fiber.state);
+  check("插件代码在依赖到位后才跑，且读到了数据", h.logs.some((l) => l.includes('依赖到位了：{"ready":true}')), h.logs.join(" | "));
+
+  // 提供方卸载 → 依赖方 park 回去（不是崩掉）
+  await providerFiber.dispose();
+  await h.container.settle();
+  for (let i = 0; i < 40 && fiber.state === "ACTIVE"; i++) await new Promise((r) => setTimeout(r, 25));
+  check("提供方卸载后依赖方 park 回 PENDING", fiber.state === "PENDING", fiber.state);
+
+  await fiber.dispose();
+  await h.runtime.dispose();
+  await h.container.dispose();
+}
+
 // ---------- 8) 元数据自检 ----------
 
 {
@@ -807,6 +1096,15 @@ const GOOD_CODE = [
   // 预置脚本必须真的把 ctx.slots.register / refresh 交出去，而不是留一个 undefined
   check("预置脚本交出了 ctx.slots（P3.4 的 UI 桥）", QUICKJS_PRELUDE.includes("slots: {") && QUICKJS_PRELUDE.includes("host.uiRegister"));
   check("预置脚本的 slots 只有 register / refresh（没有别的口子）", QUICKJS_PRELUDE.includes("slots: {") && !QUICKJS_PRELUDE.includes("unregister"));
+  // P5 外观权限：插件面必须真的交出 ctx.styles（insert/clear），且两个 op 都挂了能力
+  check("预置脚本交出了 ctx.styles（P5 外观权限）", QUICKJS_PRELUDE.includes("styles: {") && QUICKJS_PRELUDE.includes("host.stylesInsert"));
+  check("styles 的两个 op 都挂上了 ui.styles 能力", OP_CAPABILITY["styles.insert"] === "ui.styles" && OP_CAPABILITY["styles.clear"] === "ui.styles");
+  // P5 前置服务：读服务靠**声明**（inject）门禁，不进能力表 —— 但必须显式登记在
+  // OP_DECLARATION_ONLY 里：漏写能力名不该悄悄变成"不设防"
+  check("读服务的两个 op 显式登记为「靠声明门禁」", OP_DECLARATION_ONLY.has("services.get") && OP_DECLARATION_ONLY.has("services.list"));
+  check("声明门禁的 op 不与能力表重叠（表不能互相打架）", Object.keys(OP_CAPABILITY).every((op) => !OP_DECLARATION_ONLY.has(op)));
+  // P5：宿主定时器（上一轮补的 Node 白送品）也必须在预置脚本里
+  check("预置脚本交出了 ctx.timeout / ctx.interval / ctx.clear", QUICKJS_PRELUDE.includes("timeout: function") && QUICKJS_PRELUDE.includes("interval: function") && QUICKJS_PRELUDE.includes("clear: function"));
 }
 
 console.log("动态包运行时契约测试：" + pass + " 通过 / " + failures.length + " 失败");

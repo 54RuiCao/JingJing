@@ -33,6 +33,8 @@ export type PluginPackage = {
   name: string;
   purpose: string;
   capabilities: CapabilityId[];
+  /** 声明的前置服务（P5）：`plugin.xxx`，由别的插件提供 */
+  inject?: string[];
   /** 声明的域名范围（net.fetch 用；授权与运行都按它） */
   network?: { origins: string[] };
   config?: JsonSchemaNode;
@@ -63,6 +65,11 @@ export type DefineInput = {
   capabilities?: string[];
   /** 网络范围（P3.10）：声明 net.fetch 时必须给，例 { origins: ["api.deepseek.com"] } */
   network?: { origins?: string[] };
+  /**
+   * 前置服务（P5）：依赖别的插件提供的 `plugin.xxx` 服务（数据）。
+   * 依赖没到容器会让插件 park（PENDING），提供方挂上后自动继续。
+   */
+  inject?: string[];
   config?: unknown;
 };
 
@@ -183,6 +190,11 @@ export class PluginDefinitionRegistry {
     if (input.network?.origins?.length) {
       manifest.network = { origins: input.network.origins.map((o) => String(o).trim()).filter(Boolean) };
     }
+    // 前置服务（P5）：只放非空字符串，去重后交给 parseManifest 校验（只认 plugin.* 前缀）
+    if (Array.isArray(input.inject)) {
+      const names = [...new Set(input.inject.map((n) => String(n).trim()).filter(Boolean))];
+      if (names.length) manifest.inject = names;
+    }
 
     const files: PackageFile[] = [{ path: "manifest.json", content: JSON.stringify(manifest, null, 2) }];
     if (main.trim()) files.push({ path: "main.js", content: main });
@@ -208,6 +220,8 @@ export class PluginDefinitionRegistry {
         capabilities.join(","),
         JSON.stringify(config ?? null),
         JSON.stringify(input.network ?? null),
+        // 前置服务也要进签名：不然"只加了 inject"的改动会被当成幂等重发
+        JSON.stringify(input.inject ?? null),
       ]),
     );
     // 幂等只对"没点名版本"的调用生效：内容一模一样就返回已有那一版，
@@ -244,6 +258,7 @@ export class PluginDefinitionRegistry {
       name,
       purpose,
       capabilities: (parsed.manifest.capabilities ?? []) as CapabilityId[],
+      inject: parsed.manifest.inject,
       network: parsed.manifest.network,
       config: parsed.manifest.config,
       files,

@@ -14,6 +14,7 @@
 
 import { SlotCore, createSlotsService, type SlotsService } from "../../ui/slots/index";
 import { createThemeOverrideCore, type ThemeOverrideCore } from "../../ui/theme/overrides";
+import { createStyleCore, type StyleCore, type StylesService } from "../../ui/theme/styles";
 import { createContainer, contextBoundService, type Container, type ContainerDiagnostics } from "../service";
 import { ToolRegistry } from "../../ai/tools/registry";
 import { READ_TOOL_NAMES } from "../../ai/tools/index";
@@ -119,6 +120,11 @@ export type AppRuntime = {
   readonly pluginLogs: PluginLogsService;
   /** P3.6 主题覆盖层（App 把它叠加到 CSS 变量上；插件通过 ctx.theme.overrideTokens 加层） */
   readonly themeOverrides: ThemeOverrideCore;
+  /**
+   * P5 插件样式表（App 把 app 作用域的那些写进 <head>，book 作用域的那些交给书内样式）：
+   * 与主题覆盖层同类，是"谁插了什么"的账本，跨容器存活。
+   */
+  readonly pluginStyles: StyleCore;
   /** 插槽内核（诊断面板/探针用） */
   readonly slotCore: SlotCore;
   /** 插件状态（按扫描顺序） */
@@ -187,6 +193,19 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
     definitions,
   );
 
+  /**
+   * P5：给沙箱看的"有哪些插件服务可依赖"。
+   * 走 container.diagnostics() 拿服务名 —— 那是容器自己维护的账本，不另开一条并行真相；
+   * 只留 plugin.* 前缀（宿主服务各有 ctx.* 门面，不走这条路）。
+   */
+  const instanceServiceNames = (): string[] => {
+    try {
+      return container.diagnostics().services.filter((n) => n.startsWith("plugin.")).sort();
+    } catch {
+      return [];
+    }
+  };
+
   const runtimeForPlugins = (): Promise<QuickJsRuntime> => {
     if (!quickjs) {
       quickjs = QuickJsRuntime.create({
@@ -197,6 +216,9 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
           // P3.10：网络门面。域名范围已经在上游（runtime-quickjs 的 requireCapability）查过，
           // 这里把"该插件被授予的域名"再传进去，供 pluginFetch 复核重定向的每一跳。
           net: { fetch: (url, init, allowedOrigins) => pluginFetch({ url, init, allowedOrigins }) },
+          // P5 前置服务：给沙箱看的"有哪些插件服务可依赖"清单（只列 plugin.*，
+          // 宿主服务不在里面 —— 它们有各自的 ctx.* 门面与能力门禁）
+          serviceNames: () => instanceServiceNames(),
           aiCredentials: () => options.aiCredentials?.current() ?? null,
           storage: {
             get: (pluginId, key) => options.db.getSetting("plugin.storage." + pluginId + "." + key, null),
@@ -238,6 +260,8 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
         pluginId: entry.id,
         version: entry.manifest.version,
         capabilities: (entry.manifest.capabilities ?? []) as CapabilityId[],
+        // P5 前置服务：沙箱侧也要知道声明过什么（ctx.get 只认声明过的名字）
+        inject: entry.manifest.inject ?? [],
       },
       // 走**同一个** pluginFs：动态包的代码来自内存里的定义，磁盘包来自磁盘
       readCode: () => (main ? pluginFs.read(entry.relDir + "/" + main) : Promise.resolve("")),
@@ -249,6 +273,8 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
   const slotCore = new SlotCore();
   /** 主题覆盖层同理：它是"谁盖了什么"的账本，不该随容器重建丢掉 */
   const themeOverrides = createThemeOverrideCore();
+  /** P5：插件样式表（同上：账本跨容器存活，React StrictMode 重建不该让插件刚插的样式消失） */
+  const pluginStyles = createStyleCore();
   /** 当前容器的插槽服务（root 绑定的一份，给界面渲染用） */
   let slotsService: SlotsService;
 
@@ -276,6 +302,16 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
           const fixed = typeof source === "string" && source.trim() ? source.trim() : "plugin";
           return c.effect(() => themeOverrides.override(fixed, tokens ?? {}), "theme-override:" + fixed);
         },
+      })),
+    );
+    // P5 样式表：与 theme 同一个模式 —— **按上下文绑定**，source 由宿主钉成插件 id，
+    // disposer 挂在插件的 fiber 上（卸载即撤），插件之间只能撤自己的。
+    ctx.provide(
+      "styles",
+      contextBoundService<StylesService>((c) => ({
+        insert: (source, css, scope) =>
+          c.effect(() => pluginStyles.insert(source, css, scope), "plugin-styles:" + source),
+        clear: (source) => pluginStyles.clear(source),
       })),
     );
     ctx.provide("paths", options.paths);
@@ -387,6 +423,7 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
           purpose: pkg.purpose,
           version: pkg.version,
           capabilities: pkg.capabilities,
+          inject: pkg.inject ?? [],
           files: pkg.files.map((f) => ({ path: f.path, content: f.content })),
         };
       }
@@ -404,6 +441,7 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
         purpose: entry.manifest.purpose,
         version: entry.manifest.version,
         capabilities: (entry.manifest.capabilities ?? []) as string[],
+        inject: entry.manifest.inject ?? [],
         files,
       };
     };
@@ -424,7 +462,7 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
       const at = (p: string) => files.find((f) => f.path === p)?.content;
       const manifestText = at("manifest.json");
       if (!manifestText) throw new Error(t("core.runtimeBundleNoManifest"));
-      let manifest: { main?: string; ui?: { entry?: string }; config?: unknown };
+      let manifest: { main?: string; ui?: { entry?: string }; config?: unknown; inject?: string[] };
       try {
         manifest = JSON.parse(manifestText);
       } catch (e) {
@@ -438,6 +476,8 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
         main: manifest.main ? (at(manifest.main) ?? "") : "",
         ui: manifest.ui?.entry ? at(manifest.ui.entry) : undefined,
         capabilities: b.capabilities,
+        // P5 前置服务：包里的 manifest 带着它，导入时要一起还原（不然依赖会静默消失）
+        inject: manifest.inject,
         config: manifest.config,
       });
       if (!defined.ok) {
@@ -684,6 +724,7 @@ export function createAppRuntime(options: AppRuntimeOptions): AppRuntime {
     },
     slotCore,
     themeOverrides,
+    pluginStyles,
     plugins: () => loader.statuses(),
     scanReport: () => loader.lastScan(),
     loadReport: () => loader.lastMount(),

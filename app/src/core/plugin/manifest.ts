@@ -34,6 +34,9 @@ export type CapabilityId =
   | "net.fetch"
   | "ui.slot"
   | "ui.theme"
+  // P5「外观权限」：往界面/正文注入 CSS（ctx.styles.insert）。比 ui.theme 更进一步——
+  // token 只能改预设的那几个变量，而样式表能改任何东西（所以它是 medium，不是 low）。
+  | "ui.styles"
   | "log.write";
 
 export const CAPABILITIES: { id: CapabilityId; risk: "low" | "medium" | "high"; description: string }[] = [
@@ -54,6 +57,7 @@ export const CAPABILITIES: { id: CapabilityId; risk: "low" | "medium" | "high"; 
   { id: "net.fetch", risk: "high", get description() { return t("core.capNetFetch"); } },
   { id: "ui.slot", risk: "medium", get description() { return t("core.capUiSlot"); } },
   { id: "ui.theme", risk: "low", get description() { return t("core.capUiTheme"); } },
+  { id: "ui.styles", risk: "medium", get description() { return t("core.capUiStyles"); } },
   { id: "log.write", risk: "low", get description() { return t("core.capLogWrite"); } },
 ];
 
@@ -83,6 +87,17 @@ export type PluginManifest = {
    * 写 `api.deepseek.com` 或 `https://api.deepseek.com` 都行；不支持通配符。
    */
   network?: { origins: string[] };
+  /**
+   * 前置服务（P5，照 DSH 的 inject 语义）：**声明依赖别的插件提供的服务**，
+   * 名字形如 `plugin.stats`（插件用 ctx.provide('plugin.x', 纯数据) 提供）。
+   *
+   * 为什么只允许 `plugin.` 前缀：宿主自己的服务（reader / db / theme…）都已经有
+   * 带能力门面的 `ctx.*` 入口，若这里也能取，等于给沙箱开了一条绕过能力检查的后门
+   *（`db` / `pluginDev` 这种拿到手就是全权）。
+   *
+   * 语义与容器一致：**依赖没到就 park（等着，不算失败）**，提供方卸载后自动重新判定。
+   */
+  inject?: string[];
   /** 包内容哈希；写了就**校验**，不写则加载器算出来记在内存里 */
   hash?: string;
 };
@@ -93,6 +108,8 @@ export type ManifestParseResult =
   | { ok: false; issues: ManifestIssue[] };
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+/** 前置服务名：只认 plugin.xxx（宿主服务有自己的门面，不走这条路） */
+const INJECT_RE = /^plugin\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CAPABILITY_IDS = new Set(CAPABILITIES.map((c) => c.id));
 
@@ -219,6 +236,23 @@ export function parseManifest(
     }
   }
 
+  // P5 前置服务（inject）：只认 plugin.* 前缀 —— 宿主服务有自己的能力门面
+  let inject: string[] | undefined;
+  if (raw.inject !== undefined) {
+    if (!Array.isArray(raw.inject) || raw.inject.some((n) => typeof n !== "string")) {
+      issues.push({ field: "inject", message: t("core.manifestStringArrayRequired") });
+    } else {
+      const bad = (raw.inject as string[]).filter((n) => !INJECT_RE.test(n));
+      if (bad.length) {
+        issues.push({ field: "inject", message: t("core.manifestBadInject", { list: bad.join(" / ") }) });
+      } else if (raw.inject.length > 16) {
+        issues.push({ field: "inject", message: t("core.manifestTooManyInject", { max: 16 }) });
+      } else {
+        inject = [...new Set(raw.inject as string[])];
+      }
+    }
+  }
+
   let network: { origins: string[] } | undefined;
   if (raw.network !== undefined) {
     if (!isPlainObject(raw.network)) {
@@ -284,6 +318,7 @@ export function parseManifest(
       ui,
       config,
       capabilities,
+      inject,
       network,
       hash: typeof raw.hash === "string" ? raw.hash : files ? packageHash(files) : undefined,
     },

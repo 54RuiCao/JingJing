@@ -237,6 +237,9 @@ export class PluginLoader {
       ...record.impl,
       name: entry.manifest.id,
       config: jsonSchemaStandard(manifestConfigSchema(entry.manifest)),
+      // P5 前置服务：manifest 里声明的 inject 交给容器 —— 依赖没到就 park（不是失败），
+      // 提供方卸载后容器会重新判定 epoch（与内置插件走的是同一条语义）。
+      inject: entry.manifest.inject ?? record.impl.inject,
     };
     const fiber = this.ctx.plugin(plugin, options.config ?? {});
     record.fiber = fiber;

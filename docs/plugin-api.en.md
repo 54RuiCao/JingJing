@@ -67,9 +67,26 @@ function apply(ctx, config) {
 | `ctx.effect(fn)` | — | Register cleanup; the callback must be synchronous; the returned function is called on unload |
 | `ctx.slots.register(opts, render)` | `ui.slot` | Mount a UI block (see below) |
 | `ctx.slots.refresh()` | `ui.slot` | Re-render that UI block |
-| `ctx.theme.overrideTokens({...})` | `ui.theme` | Override theme colors (only `--air-bg/panel/text/sub/border/hover/accent/cover-from/cover-to` can be overridden; values may be written as `{ light, sepia, dark }`). The returned disposer is tied to plugin unload automatically |
+| `await ctx.reader.activity()` | `reader.read` | The **reading activity** the host collects (seconds and page turns per day): `{ today, todaySeconds, todayTurns, days, totalSeconds, activeDays, streak, longestStreak, bestDay }` |
+| `await ctx.net.fetch(url, opts)` | `net.fetch` | HTTP **sent by the host**. The domain must be declared in the manifest's `network.origins` and granted by the user |
+| (declared together with `net.fetch`) | `ai.credentials` | On GET/HEAD to the AI service **you configured**, the host fills in `Authorization` (the key never enters the sandbox) |
+| `ctx.timeout(fn, ms) / ctx.interval(fn, ms) / ctx.clear(handle)` | — | Host timers (there is **no** `setTimeout` in the sandbox); the host clears them all on unload |
+| `ctx.env() / ctx.crypto.randomUUID() / ctx.text.*` | — | Host environment facts (platform / touch / viewport / theme), random ids, filename and truncation helpers |
+| `ctx.theme.overrideTokens({...})` | `ui.theme` | Override theme colors (`--air-bg/panel/text/sub/border/hover/accent/cover-from/cover-to` plus the **three book tokens** `--air-book-bg / --air-book-text / --air-book-link`; values may be written as `{ light, sepia, dark }`). A value must be a **single** value such as a color (semicolons or braces are rejected) |
+| `ctx.styles.insert(css, { scope })` | `ui.styles` | Inject CSS: `scope:'app'` styles the shell, `scope:'book'` styles the **book text** (typography, margins, reading background). Removed automatically on unload; `ctx.styles.clear()` removes your own sheets |
+| `ctx.get('plugin.name')` · `ctx.services()` | the manifest's `inject` | Read a service **another plugin** provides (plain data). Only names written in `inject: ['plugin.stats']` can be read, and only the `plugin.` prefix (host capabilities go through the `ctx.*` facades). A missing dependency is not a failure: the container parks your plugin until the provider shows up |
 
-Anything not listed does not exist: the event surface (`ctx.on`), `llm.chat`, `fs.*`, and `net.fetch` are not wired up yet.
+Anything not listed does not exist: the event surface (`ctx.on`) is not wired up; `llm.chat` / `fs.read` / `fs.write` exist only in the vocabulary.
+
+### Changing appearance: colors, reading background, typography
+
+Pick the cheapest option that works:
+
+1. **Colors only**: `ctx.theme.overrideTokens({ '--air-book-bg': '#f6f0e2' })`. `--air-*` drives the app shell; `--air-book-bg / --air-book-text / --air-book-link` drives the book text (the reading background lives here).
+2. **Typography / margins / details inside the text**: `ctx.styles.insert('body { line-height: 2 }', { scope: 'book' })`. The text document can also use `var(--air-bg)` and friends.
+3. **Your own UI block, or styles the product does not offer**: same function with `{ scope: 'app' }` (the default). Give your node a `className` and select it in CSS.
+
+**The book text lives in the book's own iframe — a different document**: shell CSS and shell CSS variables cannot reach it. That is the root cause of "I changed the color and nothing happened", so do not write `body` in `scope:'app'` and expect it to hit the text. `@import` and remote `url(...)` are rejected (they would bypass the `net.fetch` origin grant): fetch with `ctx.net.fetch` and inline the result, or use a data: URI. At most 16 sheets and 64 KB per plugin.
 
 ## The UI half: declarative UI, not React
 
@@ -137,8 +154,8 @@ ctx.slots.register({
 
 ## Capability vocabulary
 
-`reader.read` · `reader.annotate` · `reader.navigate` · `storage.plugin` · `log.write` · `ui.slot` · `ui.theme`
-(facades are wired); `llm.chat` · `fs.read` · `fs.write` · `net.fetch` exist only in the vocabulary — declaring them grants nothing.
+`reader.read` · `reader.annotate` · `reader.navigate` · `storage.plugin` · `log.write` · `ui.slot` · `ui.theme` · `ui.styles` · `net.fetch` · `ai.credentials`
+(facades are wired); `llm.chat` · `fs.read` · `fs.write` exist only in the vocabulary — declaring them grants nothing.
 
 A grant is bound to `(plugin id, version, capability)`: "Grant (this version only)"（授权（只此版本）） in the panel covers the current version only, and a new version needs a fresh grant; "Include future versions"（含后续版本） spans versions.
 After a grant is revoked the plugin **stops immediately**.

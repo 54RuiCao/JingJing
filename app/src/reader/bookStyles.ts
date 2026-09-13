@@ -41,17 +41,60 @@ export const defaultTypography: TypographyOptions = {
   fontFamily: "serif",
 };
 
-export function buildBookCSS(o: TypographyOptions, theme?: ThemeTokens): string {
+/**
+ * 生成书内样式表。
+ *
+ * P5「外观权限」起多收一个 `tokens`：插件主题覆盖层解出来的 `--air-*` 值。
+ * 之所以必须由调用方**传进来**（而不是在书里读 documentElement）：正文跑在书自己的
+ * iframe 里，那是另一个 document，外层变量一个字节都过不去 ——
+ * 这正是"插件改不了阅读背景"的根因。
+ */
+export function buildBookCSS(
+  o: TypographyOptions,
+  theme?: ThemeTokens,
+  tokens?: Record<string, string>,
+): string {
   const t = theme?.book;
+  const pick = (name: string, fallback: string | undefined) => tokens?.[name] ?? fallback;
+  const bg = pick("--air-book-bg", t?.bg);
+  const text = pick("--air-book-text", t?.text);
+  const link = pick("--air-book-link", t?.link);
+  /**
+   * 书内文档自己的一份变量表：让注入正文的插件 CSS 也能写 `var(--air-accent)`，
+   * 与外壳用同一套名字（作者不用记两套）。
+   */
+  const vars: Record<string, string | undefined> = {
+    "--air-bg": pick("--air-bg", theme?.app.bg),
+    "--air-panel": pick("--air-panel", theme?.app.panel),
+    "--air-text": pick("--air-text", theme?.app.text),
+    "--air-sub": pick("--air-sub", theme?.app.sub),
+    "--air-border": pick("--air-border", theme?.app.border),
+    "--air-hover": pick("--air-hover", theme?.app.hover),
+    "--air-accent": pick("--air-accent", theme?.app.accent),
+    "--air-cover-from": pick("--air-cover-from", t?.coverFrom),
+    "--air-cover-to": pick("--air-cover-to", t?.coverTo),
+    "--air-book-bg": bg,
+    "--air-book-text": text,
+    "--air-book-link": link,
+  };
+  const varBlock = Object.entries(vars)
+    .filter(([, v]) => typeof v === "string" && v !== "")
+    .map(([k, v]) => `  ${k}: ${v};`)
+    .join("\n");
   return `
 @namespace epub "http://www.idpf.org/2007/ops";
+
+/* 正文文档自己的变量表（外壳的变量不过 iframe 边界） */
+:root {
+${varBlock}
+}
 
 html {
   color-scheme: ${theme?.id === "dark" ? "dark" : "light"};
 }
 
 body {
-  ${t ? `background: ${t.bg}; color: ${t.text};` : ""}
+  ${bg ? `background: ${bg};` : ""}${text ? ` color: ${text};` : ""}
   ${o.fontFamily === "publisher" ? "" : `font-family: var(--air-${o.fontFamily});`}
   font-size: ${o.fontSize}px;
   line-height: ${o.lineHeight};
@@ -105,7 +148,7 @@ img, svg, video {
   height: auto;
 }
 
-${t ? `a:link, a:visited { color: ${t.link}; }` : ""}
+${link ? `a:link, a:visited { color: ${link}; }` : ""}
 
 ruby rt {
   font-size: 0.5em;

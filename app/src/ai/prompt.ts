@@ -43,7 +43,9 @@ export const PLUGIN_SHARD = [
   "· await ctx.storage.get/set/remove/keys（插件自己的存储）",
   "· await ctx.net.fetch(url, { method?, headers?, body? }) → **直接给 { ok, status, url, contentType, text, truncated }**（不是 Response，别调 res.text()）；只能访问 manifest 的 network.origins 里声明且被授权的域名",
   "· ctx.slots.register({ slot, id, label }, function (props, ui) {…})：list/keyed 槽位**必须给 id**；render 必须**同步**返回声明式 JSON 节点 { type, props, children } —— 不是 React，**没有 h() / JSX / ctx.vdom**；事件写成 ui.handler(fn)，而 **ui 是 render 的第二个参数**（不是 ctx.ui，实测模型在这里连撞两轮）",
-  "· ctx.slots.refresh() ／ ctx.theme.overrideTokens({ '--air-accent': '#c00' })",
+  "· ctx.slots.refresh() ／ ctx.theme.overrideTokens({ '--air-accent': '#c00', '--air-book-bg': '#f6f0e2' })（正文三色是 --air-book-bg/text/link，改阅读背景用它）",
+  "· ctx.styles.insert(css, { scope: 'app' | 'book' })：要调排版/页边/正文外观或自己那块 UI 的样子就用它（book = 书籍正文），卸载自动撤；ctx.timeout/interval/clear 是宿主定时器（沙箱里没有 setTimeout）",
+  "· ctx.get('plugin.名字') 读**别的插件**提供的服务（要先在 manifest 里写 inject: ['plugin.名字']；ctx.services() 看现在有哪些）。依赖没到不算失败：容器会让插件先 park，提供方挂上后自动继续",
   "上面是速查；**动手前仍要先 load_skill(writing-plugins)**（里面有完整示例与坑），槽位名/能力词表/白名单以 plugin_inspect 的现场为准。",
 ].join("\n");
 
