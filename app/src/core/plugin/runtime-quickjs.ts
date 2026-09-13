@@ -99,6 +99,21 @@ export const QUICKJS_PRELUDE = [
   "  for (var i = 0; i < list.length; i++) { try { await list[i](); } catch (e) { globalThis.__aireaderDisposerError = String(e && e.message ? e.message : e); } }",
   "  return list.length;",
   "};",
+  // P5 教学式陷阱：沙箱里默认没有 Node/浏览器全局，只把最常见的误用点做成"会说话的报错"
+  // （照 DSH sandbox.js:78-108 的思路，方向相反：我们默认没有、再白名单注入）。
+  // 只 trap 函数型全局；window/document/process 这类数据型保持不存在，免得 typeof 探测被骗。
+  "(function () {",
+  "  var trap = function (name, message) { globalThis[name] = function () { throw new Error(message); }; };",
+  "  trap('setTimeout', '沙箱里没有 setTimeout。宿主暂时没接计时器能力：要周期刷新请让用户操作触发，或等 ctx.interval 接好（见 plugin_inspect）');",
+  "  trap('setInterval', '沙箱里没有 setInterval。同上：目前只能由用户操作 / ctx.slots.refresh() 驱动重绘');",
+  "  trap('clearTimeout', '沙箱里没有 clearTimeout');",
+  "  trap('clearInterval', '沙箱里没有 clearInterval');",
+  "  trap('requestAnimationFrame', '沙箱里没有 requestAnimationFrame。画完调 ctx.slots.refresh() 触发重渲染');",
+  "  trap('fetch', '沙箱里没有 fetch。请用 ctx.net.fetch(url, options)：需在 manifest.capabilities 声明 net.fetch 并在 network.origins 写明域名，由用户授权');",
+  "  trap('XMLHttpRequest', '沙箱里没有 XMLHttpRequest。请用 ctx.net.fetch(url, options)');",
+  "  trap('require', '沙箱里没有 require/module：插件就是单文件模块，没有 npm 依赖。要用宿主能力先调 plugin_inspect 看清单，再从 ctx.* 取');",
+  "  trap('importScripts', '沙箱里没有 importScripts：插件是单文件，不要加载外部脚本');",
+  "})();",
   "globalThis.__aireaderCtx = function (host) {",
   "  var parse = function (s) { return s === \"\" || s === undefined || s === null ? undefined : JSON.parse(s); };",
   "  var unwrap = function (raw) {",

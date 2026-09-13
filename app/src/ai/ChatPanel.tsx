@@ -236,6 +236,26 @@ export function ChatPanel({ bookId, context, load, onReload, registry, skills, a
   }, [messages, streamingText]);
 
   /**
+   * 底部那一摞（工具轨迹 / 提示 / 用量 / 输入框）高度是会变的 —— 例如
+   * **token 与花费那行字数一多就折成两行**，消息区随之变矮，而列表并不会自动重新贴底，
+   * 于是"正在生成"的那条被顶出可视区（用户实测反馈就是这个）。
+   * 这里监听容器尺寸：只要在生成中、或本来就在底部附近，就把列表重新贴到底。
+   */
+  useEffect(() => {
+    const list = scrollRef.current;
+    const host = list?.parentElement;
+    if (!list || !host || typeof ResizeObserver === "undefined") return;
+    const keepPinned = () => {
+      const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 160;
+      if (busy || nearBottom) list.scrollTo({ top: list.scrollHeight });
+    };
+    const ro = new ResizeObserver(keepPinned);
+    ro.observe(host);
+    ro.observe(list);
+    return () => ro.disconnect();
+  }, [busy]);
+
+  /**
    * 技能目录：启动扫一次（异步，但用户的第一次提问之前一定已经完成），
    * 之后只在点「重新扫描」、或 AI 写完技能（create_skill 内部会 refresh）时重扫。
    * 不做文件监听 —— 目录什么时候变，在界面上是可见的（§5.5 的取舍）。

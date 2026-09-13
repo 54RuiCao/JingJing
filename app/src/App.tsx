@@ -1667,7 +1667,7 @@ export default function App() {
 
           {/* 侧栏内容区：固定高度、自己滚动（AI 那一页内部再分「消息区滚动 + 输入框常驻」） */}
           <div className="air-side-body">
-          {tab === "ai" && (
+          <div className="air-side-page" style={{ display: tab === "ai" ? "flex" : "none" }}>
             /* P3.7 待办 B：书库页（route=library）用 bookId=null 的**通用对话** ——
                后端早就支持（ai_messages.book_id IS NULL、作用域 adhoc 只放只读工具），
                这里只是把它接到书库分支上。没有 foliate 实例，reader.* 工具会回结构化的
@@ -1702,7 +1702,7 @@ export default function App() {
                     }
               }
             />
-          )}
+          </div>
 
           {tab === "notes" && (
             <>

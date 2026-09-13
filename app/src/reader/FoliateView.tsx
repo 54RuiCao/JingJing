@@ -161,11 +161,28 @@ export function FoliateView({
         const doc: Document | undefined = c?.doc;
         if (!doc || wiredDocs.has(doc)) continue;
         wiredDocs.add(doc);
-        let down: { x: number; y: number; t: number } | null = null;
+        let down: { x: number; y: number; t: number; moved: boolean } | null = null;
         doc.addEventListener(
           "pointerdown",
           ((e: PointerEvent) => {
-            down = { x: e.clientX, y: e.clientY, t: Date.now() };
+            down = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+          }) as EventListener,
+          true,
+        );
+        // 手指移动过就标成"滑动"：滑动翻页期间**绝不能再判成点击**
+        // （用户实测：滑动翻页时有时会把底部抽屉顺手唤出来）
+        doc.addEventListener(
+          "pointermove",
+          ((e: PointerEvent) => {
+            if (!down) return;
+            if (Math.abs(e.clientX - down.x) > 8 || Math.abs(e.clientY - down.y) > 8) down.moved = true;
+          }) as EventListener,
+          true,
+        );
+        doc.addEventListener(
+          "pointercancel",
+          (() => {
+            down = null;
           }) as EventListener,
           true,
         );
@@ -174,9 +191,10 @@ export function FoliateView({
           ((e: PointerEvent) => {
             const d = down;
             down = null;
-            if (!d || !onTapZoneRef.current) return;
+            if (!d || d.moved || !onTapZoneRef.current) return;
             if (Math.abs(e.clientX - d.x) > 12 || Math.abs(e.clientY - d.y) > 12) return;
-            if (Date.now() - d.t > 900) return;
+            // 长按是选字不是翻页；正常"点一下"是 100~300ms
+            if (Date.now() - d.t > 500) return;
             const target = e.target as Element | null;
             if (target?.closest?.("a")) return;
             const sel = doc.getSelection?.();
@@ -226,6 +244,12 @@ export function FoliateView({
         void import("foliate-js/overlayer.js")
           .then((m: any) => draw(m.Overlayer.highlight, { color: annotation?.color ?? "yellow" }))
           .catch(() => draw());
+      });
+
+      // 新章的文档加载完就补挂一次：只靠 relocate 会漏（同章翻页不重建文档，
+      // 而"新章加载"与"relocate 触发"的先后并不固定）—— 实测"滑到别的页后点击翻页就失效"
+      view.addEventListener("load", () => {
+        wireTapZones();
       });
 
       view.addEventListener("show-annotation", (e: any) => {

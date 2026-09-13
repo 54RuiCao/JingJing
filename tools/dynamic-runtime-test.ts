@@ -246,10 +246,13 @@ const GOOD_CODE = [
   await instance.load();
   await instance.apply({});
   const report = JSON.parse(h.logs.find((l) => l.includes("fetch"))?.split(":info:")[1] ?? "{}");
-  check("沙箱里没有 fetch", report.fetch === "undefined", JSON.stringify(report));
-  check("沙箱里没有 require", report.require === "undefined");
+
   check("沙箱里没有 document/window（没有 DOM）", report.document === "undefined" && report.window === "undefined");
-  check("沙箱里没有 setTimeout（定时器要另外授予）", report.setTimeout === "undefined");
+  // P5：setTimeout/setInterval 现在是**同名陷阱**（存在但一调用就抛教学错误），
+  // 比"静默 undefined"对模型友好得多 —— 它至少知道该换成什么。
+  check("沙箱里没有真的 setTimeout（是教学陷阱）", report.setTimeout === "function");
+  check("沙箱里没有真的 require（是教学陷阱）", report.require === "function");
+  check("沙箱里没有 fetch 真身（是教学陷阱）", report.fetch === "function");
   check("沙箱里没有 process", report.process === "undefined");
   await instance.stop();
   await h.runtime.dispose();
