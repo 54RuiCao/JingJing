@@ -91,9 +91,9 @@ export function GearIcon() {
 
 
 /** 书签：参考阅读器顶栏右侧那个 */
-export function BookmarkIcon() {
+export function BookmarkIcon({ filled = false }: { filled?: boolean } = {}) {
   return (
-    <svg {...base}>
+    <svg {...base} fill={filled ? "currentColor" : "none"}>
       <path d="M7 4.8h10a1 1 0 0 1 1 1V20l-6-3.6L6 20V5.8a1 1 0 0 1 1-1Z" />
     </svg>
   );

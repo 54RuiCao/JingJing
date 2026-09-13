@@ -2606,3 +2606,84 @@ html[data-mobile="true"] body {
   max-height: none;
 }
 
+
+/* ============================================================================
+ * P17：底栏靠左 + 去掉搜索钮 + 阅读页浮层圆角/浮动输入框/浮动 AI 卡片
+ * ========================================================================== */
+
+/* 底栏：整条靠左（胶囊不再拉满），搜索钮已删 */
+.air-app[data-mobile="true"] .air-tabbar {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-pill {
+  flex: 0 0 auto;
+  min-width: 244px;
+}
+
+/* 页面切换的过渡：切页签时内容轻微淡入（配合左右滑） */
+.air-app[data-mobile="true"] .air-lib-col,
+.air-app[data-mobile="true"] .air-ai-col {
+  animation: air-tab-in 0.22s ease;
+}
+
+@keyframes air-tab-in {
+  from {
+    opacity: 0.4;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ---------- 阅读页浮层：上下两条都加圆角（参考里是"浮起来的两块"） ---------- */
+
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar {
+  left: 8px;
+  right: 8px;
+  top: calc(4px + env(safe-area-inset-top));
+  border-radius: 16px;
+  border-bottom: 0;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), var(--m-hairline);
+  overflow: hidden;
+}
+
+.air-app[data-mobile="true"] .air-reader-dock {
+  left: 8px;
+  right: 8px;
+  bottom: calc(6px + env(safe-area-inset-bottom));
+  border-radius: 18px;
+  border-top: 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), var(--m-hairline);
+  padding: 8px;
+}
+
+/* ---------- 未打开 AI 时：悬浮的输入框（不再是一条通栏） ---------- */
+
+.air-app[data-mobile="true"] .air-chat-launcher {
+  min-height: 44px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-panel) 72%, transparent);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: var(--m-hairline);
+}
+
+/* ---------- 打开 AI 后：浮动卡片（四角圆角 + 四周留边） ---------- */
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  left: 8px;
+  right: 8px;
+  bottom: calc(6px + env(safe-area-inset-bottom));
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24), var(--m-hairline);
+}
+
+/* 书签按钮：加过就是实心 */
+.air-app[data-mobile="true"] .air-bookmark-btn[data-on="true"] {
+  color: var(--m-tint);
+}
+

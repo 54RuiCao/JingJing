@@ -4,11 +4,39 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+
+    /**
+     * P17：**把系统导航栏收起来**（沉浸式）。
+     *
+     * 为什么：手机底部那条导航栏（返回/主页/多任务）会盖住我们的底部栏 ——
+     * 实测"搜索按钮贴最底下被挡住"。Android 上如果内容要延伸到屏幕底部，
+     * 正确做法就是让它**浮在内容上、不用时自动隐藏**（swipe 一下唤出），
+     * 而不是把界面往上缩一截留位置。
+     *
+     * BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE：用户从边缘上滑可以临时叫出导航栏。
+     */
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    WindowInsetsControllerCompat(window, window.decorView).apply {
+      hide(WindowInsetsCompat.Type.navigationBars())
+      systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+  }
+
+  /** 回到前台时再收一次（有些机型切回来会把导航栏放出来） */
+  override fun onResume() {
+    super.onResume()
+    WindowInsetsControllerCompat(window, window.decorView).apply {
+      hide(WindowInsetsCompat.Type.navigationBars())
+      systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
   }
 
   /**

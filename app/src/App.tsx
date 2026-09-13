@@ -949,8 +949,8 @@ export default function App() {
    */
   useEffect(() => {
     if (!mobile || route === "reader") return;
-    const el = document.querySelector(".air-main") as HTMLElement | null;
-    if (!el) return;
+    // 挂在 document 上：内容是滚动容器，事件目标会变来变去（之前挂在 .air-main 上没生效）
+    const el = document as unknown as HTMLElement;
     let start: { x: number; y: number; t: number } | null = null;
     const ORDER: ("home" | "library" | "ai")[] = ["home", "library", "ai"];
     const onDown = (e: PointerEvent) => {
@@ -1683,6 +1683,16 @@ export default function App() {
   }, [mobile, sheetOpen, tab, tabs]);
 
 
+  /**
+   * P17：书签按钮要有"已加过"的样子（用户点完没变化，会以为没生效）。
+   * 判定口径：本书里有书签，且它落在**当前这一章**（cfi 的节号对得上）。
+   */
+  const bookmarkedHere = useMemo(() => {
+    const idx = sectionRef.current.sectionIndex;
+    if (typeof idx !== "number") return false;
+    return annotations.some((a) => a.kind === "bookmark" && sectionIndexOfCfi(a.cfi) === idx);
+  }, [annotations, location]);
+
   /** 笔记总览（跨书）：按书分组，组内按时间倒序 */
   const noteGroups = useMemo(
     () => groupAnnotations(notes, { kind: noteFilter, query: noteQuery }),
@@ -1779,10 +1789,16 @@ export default function App() {
             >
               <SearchIcon />
             </button>
-            <button onClick={() => void addBookmark()} title={t("app.addBookmark")} aria-label={t("app.addBookmark")}>
+            <button
+              className="air-bookmark-btn"
+              data-on={bookmarkedHere ? "true" : "false"}
+              onClick={() => void addBookmark()}
+              title={t("app.addBookmark")}
+              aria-label={t("app.addBookmark")}
+            >
               <span className="air-only-desktop">{t("app.addBookmark")}</span>
               <span className="air-only-mobile">
-                <BookmarkIcon />
+                <BookmarkIcon filled={bookmarkedHere} />
               </span>
             </button>
             <button className="air-nav-next air-bar-desktop-only" onClick={() => void handleRef.current?.next()}>
@@ -2414,18 +2430,8 @@ export default function App() {
               </button>
             ))}
           </div>
-          <button
-            className="air-tabbar-fab"
-            aria-label={t("app.tabSearchShort")}
-            onClick={() => {
-              setAiOpen(false);
-              setMobileTab("library");
-              setRoute("library");
-              setSearchFocus(true);
-            }}
-          >
-            <SearchIcon />
-          </button>
+          {/* P17：右侧那个搜索圆钮删掉了 —— 它点了只是切到书库，用户实测"没有用"。
+              搜索在书库里用 ↕ 旁边那条路径（或直接滑到书库页）即可。 */}
         </nav>
       )}
 
