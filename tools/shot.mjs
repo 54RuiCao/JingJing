@@ -104,8 +104,15 @@ if (stepFile) {
   }
   console.log("步骤脚本返回：" + JSON.stringify(r.result?.value ?? null).slice(0, 300));
 }
+// 窗口被别的窗口压住时，WebView2 的合成器会被节流：captureScreenshot 会返回**上一帧**
+// （实测：DOM 明明已经变了，截出来的还是几分钟前的画面）。先提到前台再截。
+try {
+  await send("Page.bringToFront");
+} catch {
+  /* 老版本没有这个方法就算了 */
+}
 await new Promise((r) => setTimeout(r, waitMs));
-const shot = await send("Page.captureScreenshot", { format: "png" });
+const shot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, Buffer.from(shot.data, "base64"));
 console.log("已保存 " + out + "（" + Math.round(Buffer.from(shot.data, "base64").length / 1024) + " KB）");

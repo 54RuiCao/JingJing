@@ -8,7 +8,8 @@ import {
   type TocItem,
 } from "./reader/FoliateView";
 import { buildBookCSS, defaultTypography, type TypographyOptions } from "./reader/bookStyles";
-import { AiIcon, HomeIcon, LibraryIcon, NoteIcon, SearchIcon, TocIcon } from "./ui/mobileIcons";
+import { AiIcon, BookmarkIcon, FontIcon, HomeIcon, LibraryIcon, SearchIcon, TocIcon } from "./ui/mobileIcons";
+// 注：NoteIcon 目前只在批注相关界面用得到（阅读底栏已按参考精简为"页码 + AI"）
 import { collectReport, saveReport } from "./reader/p0Report";
 import { txtToEpubFile, type TxtImportStats } from "./reader/txtToEpub";
 import { LibraryPage } from "./library/LibraryPage";
@@ -1608,9 +1609,9 @@ export default function App() {
           <span className="air-only-desktop">{t("app.backToLibrary")}</span>
           <span className="air-only-mobile">←</span>
         </button>
-        <button onClick={pick}>
-          <span className="air-only-desktop">{t("app.openFile")}</span>
-          <span className="air-only-mobile">{t("app.openShort")}</span>
+        {/* 手机端顶栏照参考：只有一排图标（打开文件在书库页有入口，这里省掉） */}
+        <button className="air-bar-desktop-only" onClick={pick}>
+          <span>{t("app.openFile")}</span>
         </button>
         {DEV_TOOLS && (
           <>
@@ -1620,19 +1621,50 @@ export default function App() {
         )}
         {bookName && (
           <>
-            <button className="air-nav-prev" onClick={() => void handleRef.current?.prev()}>
-              <span className="air-only-desktop">{t("app.prevPage")}</span>
-              <span className="air-only-mobile">‹</span>
+            <button className="air-nav-prev air-bar-desktop-only" onClick={() => void handleRef.current?.prev()}>
+              <span>{t("app.prevPage")}</span>
             </button>
-            <button onClick={() => void addBookmark()}>
+            {/* 手机端：目录 / 字号 / 检索（参考顶栏中间那三个图标） */}
+            <button
+              className="air-bar-mobile-only"
+              title={t("app.tabToc", { n: toc.length })}
+              aria-label={t("app.tabToc", { n: toc.length })}
+              onClick={() => {
+                setSideTab("toc");
+                setSheetOpen(true);
+              }}
+            >
+              <TocIcon />
+            </button>
+            <button
+              className="air-bar-mobile-only"
+              title={t("app.tabSettings")}
+              aria-label={t("app.tabSettings")}
+              onClick={() => setTypoSheet(true)}
+            >
+              <FontIcon />
+            </button>
+            <button
+              className="air-bar-mobile-only"
+              title={t("app.tabSearch")}
+              aria-label={t("app.tabSearch")}
+              onClick={() => {
+                setSideTab("search");
+                setSheetOpen(true);
+              }}
+            >
+              <SearchIcon />
+            </button>
+            <button onClick={() => void addBookmark()} title={t("app.addBookmark")} aria-label={t("app.addBookmark")}>
               <span className="air-only-desktop">{t("app.addBookmark")}</span>
-              <span className="air-only-mobile">{t("app.bookmarkShort")}</span>
+              <span className="air-only-mobile">
+                <BookmarkIcon />
+              </span>
             </button>
-            <button className="air-nav-next" onClick={() => void handleRef.current?.next()}>
-              <span className="air-only-desktop">{t("app.nextPage")}</span>
-              <span className="air-only-mobile">›</span>
+            <button className="air-nav-next air-bar-desktop-only" onClick={() => void handleRef.current?.next()}>
+              <span>{t("app.nextPage")}</span>
             </button>
-            <span className="air-bar-pct" style={{ minWidth: 46, textAlign: "right" }}>
+            <span className="air-bar-pct air-bar-desktop-only" style={{ minWidth: 46, textAlign: "right" }}>
               {(fraction * 100).toFixed(1)}%
             </span>
             {/* 手机上位位置文本交给底部状态条（插件席位）显示，顶栏省下这一截宽度 */}
@@ -1729,12 +1761,15 @@ export default function App() {
               参考阅读器的底栏只有页码与几个图标；用户的额外要求是**AI 也要在这一栏**。 */}
           {mobile && bookName && (
             <div className="air-reader-dock" data-on={chromeOn ? "true" : "false"}>
-              {/* 书名 + 位置：参考的阅读底栏就是"居中一行信息"（顶栏那格让给按钮） */}
-              <div className="air-reader-pageinfo">
-                {bookName ? title : ""}
-                {location ? (bookName ? " · " + location : location) : ""}
-              </div>
-              <div className="air-reader-actions">
+              {/*
+                P11（照 453 参考）：底部**只放"页码 + AI"**这两样。
+                其余功能全搬到顶栏那一排图标（目录 / 字号 / 检索 / 书签），
+                浮层越简单，正文越像"一页纸"。
+              */}
+              <div className="air-reader-dockbar">
+                <span className="air-reader-pageinfo">
+                  {location || (fraction ? Math.round(fraction * 100) + "%" : "")}
+                </span>
                 <button
                   className="air-dock-ai"
                   onClick={() => {
@@ -1744,30 +1779,6 @@ export default function App() {
                 >
                   <AiIcon />
                   <span>{t("app.tabAi")}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    hideChrome();
-                    setSideTab("toc");
-                    setSheetOpen(true);
-                  }}
-                >
-                  <TocIcon />
-                  <span>{t("app.tabToc", { n: toc.length })}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    hideChrome();
-                    setSideTab("anno");
-                    setSheetOpen(true);
-                  }}
-                >
-                  <NoteIcon />
-                  <span>{t("app.tabAnno", { n: annotations.length })}</span>
-                </button>
-                <button onClick={() => setTypoSheet(true)}>
-                  <span className="air-dock-aa">Aa</span>
-                  <span>{t("app.tabSettings")}</span>
                 </button>
               </div>
             </div>

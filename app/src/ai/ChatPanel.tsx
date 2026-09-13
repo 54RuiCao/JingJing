@@ -25,6 +25,7 @@ import type { SlotEntry, SlotsService } from "../ui/slots";
 import type { ToolCallRecord } from "./tools/types";
 import { getLang, t } from "../i18n";
 import { useT } from "../i18n/react";
+import { isMobile } from "../platform";
 
 export type BookContext = {
   title: string;
@@ -240,8 +241,22 @@ export function ChatPanel({ bookId, context, load, onReload, registry, skills, a
     })();
   }, [bookId]);
 
+  /**
+   * 让最新的消息留在视野里。
+   * 桌面（侧栏）里滚的是列表自己；手机半屏卡片里滚的是外层的 .air-chat
+   *（那样"设置"这一块也能一起滚，而不是把滚动漏给背后的页面）。
+   * 所以这里把"离得最近的那个真正能滚的祖先"也滚一下。
+   */
+  const pinToBottom = (el: HTMLElement | null) => {
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight });
+    for (let p = el.parentElement, i = 0; p && i < 3; p = p.parentElement, i++) {
+      if (p.scrollHeight > p.clientHeight + 4) p.scrollTo({ top: p.scrollHeight });
+    }
+  };
+
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    pinToBottom(scrollRef.current);
   }, [messages, streamingText]);
 
   /**
@@ -256,7 +271,7 @@ export function ChatPanel({ bookId, context, load, onReload, registry, skills, a
     if (!list || !host || typeof ResizeObserver === "undefined") return;
     const keepPinned = () => {
       const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 160;
-      if (busy || nearBottom) list.scrollTo({ top: list.scrollHeight });
+      if (busy || nearBottom) pinToBottom(list);
     };
     const ro = new ResizeObserver(keepPinned);
     ro.observe(host);
@@ -677,6 +692,14 @@ export function ChatPanel({ bookId, context, load, onReload, registry, skills, a
 
       {showConfig && (
         <div className="air-chat-config">
+          {/* 手机上这一块是自己的一张底部卡片（见 mobile.css）：要有标题与关闭，
+              否则它铺在对话里、还比卡片高 —— 滚动会漏到后面的页面上 */}
+          <div className="air-chat-config-head">
+            <span>{t("chat.settings")}</span>
+            <button onClick={() => setShowConfig(false)} aria-label={t("app.close")}>
+              ✕
+            </button>
+          </div>
           <label style={{ display: "block", marginBottom: 6, fontSize: 12 }}>
             <span style={{ color: "var(--air-sub, #7b8494)" }}>{t("chat.provider")}</span>
             <select
@@ -902,10 +925,18 @@ export function ChatPanel({ bookId, context, load, onReload, registry, skills, a
       <div className="air-chat-input">
         <textarea
           ref={inputRef}
-          rows={2}
-          placeholder={t("chat.inputPlaceholder")}
+          // 手机上只要一行起步、随输入长高（最多 4 行）—— 之前写死 rows={2} + 长占位符
+          // 会把它撑得很高、字还被裁掉（用户实测）
+          rows={1}
+          placeholder={isMobile() ? t("chat.inputPlaceholderShort") : t("chat.inputPlaceholder")}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            // 自适应高度：先归零再按内容算，最多 4 行（超过就内部滚）
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = Math.min(96, el.scrollHeight) + "px";
+          }}
           onKeyDown={(e) => {
             if (slashCandidates.length > 0 && e.key === "Enter" && !e.shiftKey) {
               // 候选菜单优先于发送：Enter = 选中第一个候选（与 DSH 的输入触发器一致）

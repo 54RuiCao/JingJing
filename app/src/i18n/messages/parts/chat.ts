@@ -90,6 +90,7 @@ const zh = {
   "chat.usageCost": "约 ¥{cost}",
 
   // 输入区
+  "chat.inputPlaceholderShort": "问点什么…（/ 调用技能）",
   "chat.inputPlaceholder": "问点什么…（Enter 发送，Shift+Enter 换行；/名字 直接调用技能）",
   "chat.send": "发送",
   "chat.stop": "停止",
@@ -182,6 +183,7 @@ const en: Record<keyof typeof zh, string> = {
   "chat.usageOutput": "Output {n} tok",
   "chat.usageCost": "about ¥{cost}",
 
+  "chat.inputPlaceholderShort": "Ask something… (/ for skills)",
   "chat.inputPlaceholder": "Ask something… (Enter to send, Shift+Enter for a new line; /name calls a skill directly)",
   "chat.send": "Send",
   "chat.stop": "Stop",

@@ -89,3 +89,23 @@ export function GearIcon() {
   );
 }
 
+
+/** 书签：参考阅读器顶栏右侧那个 */
+export function BookmarkIcon() {
+  return (
+    <svg {...base}>
+      <path d="M7 4.8h10a1 1 0 0 1 1 1V20l-6-3.6L6 20V5.8a1 1 0 0 1 1-1Z" />
+    </svg>
+  );
+}
+
+/** 字号：顶栏那个 Aa */
+export function FontIcon() {
+  return (
+    <svg {...base}>
+      <path d="M3.6 19 8 6l4.4 13" />
+      <path d="M5.2 14.6h5.6" />
+      <path d="M14.6 19l2.6-7.6L19.8 19" />
+    </svg>
+  );
+}

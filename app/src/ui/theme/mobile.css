@@ -1545,9 +1545,10 @@ html[data-mobile="true"] body {
 }
 
 /* 正文区顶部留出"状态栏那一条"（阅读引擎自己还有 48px 页边），
-   这样浮起来的顶栏压在页边上，不会盖住第一行字 */
+   这样浮起来的顶栏压在页边上，不会盖住第一行字。
+   预览环境（桌面模拟手机视口）没有安全区，给个 26px 兜底，免得看起来字被压掉半行。 */
 .air-app[data-mobile="true"] .air-reader-col {
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(env(safe-area-inset-top), 26px);
 }
 
 /* ---------- 2) AI 半屏卡片：两档 + 抓手可拖 ---------- */
@@ -1609,5 +1610,269 @@ html[data-mobile="true"] body {
   width: 44px;
   height: 44px;
   min-height: 44px;
+}
+
+
+/* ============================================================================
+ * P11：照 453 参考重排阅读页的浮层 + 修 AI 的几个实测问题
+ *   · 顶部：一排图标（返回 / 目录 / 字号 / 检索 / 书签）
+ *   · 底部：只留"页码 + AI"
+ *   · AI 设置：自己一张底部卡片（不再铺在对话里、滚动漏到后面）
+ *   · 输入栏：一行起步、随输入长高，不再又高又裁字
+ * ========================================================================== */
+
+/* ---------- 1) 顶栏：图标行 ---------- */
+
+.air-bar-desktop-only {
+  display: none;
+}
+
+/* 注意特异性：下面那条 "…> .air-bar button { display: flex }" 会把 display:none 压掉，
+   所以隐藏桌面专属控件这条要写成同样长的选择器链 */
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar button.air-bar-desktop-only,
+.air-app[data-mobile="true"] .air-bar button.air-bar-desktop-only,
+.air-app[data-mobile="true"] .air-bar select.air-bar-desktop-only,
+.air-app[data-mobile="true"] .air-bar span.air-bar-desktop-only {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-bar-mobile-only {
+  display: flex;
+}
+
+.air-bar-mobile-only {
+  display: none;
+}
+
+/* 顶栏阅读页：图标居中排布、不要换行 */
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar {
+  flex-wrap: nowrap;
+  align-items: center;
+  min-height: 48px;
+}
+
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar button {
+  flex: 0 0 auto;
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar button svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* 顶栏最左那个返回键的箭头是文字，给它一点字号 */
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar button .air-only-mobile {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* 书签按钮里的图标容器不要撑高 */
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar button .air-only-mobile svg {
+  display: block;
+}
+
+/* ---------- 2) 底栏：页码 + AI ---------- */
+
+.air-reader-dockbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.air-app[data-mobile="true"] .air-reader-dock {
+  padding: 6px var(--m-pad) calc(8px + env(safe-area-inset-bottom));
+}
+
+.air-app[data-mobile="true"] .air-reader-pageinfo {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  margin: 0;
+  font-size: var(--m-t-sub);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.air-app[data-mobile="true"] .air-dock-ai {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-tint);
+  color: #fff;
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  padding: 0 16px;
+  min-height: 40px;
+}
+
+.air-app[data-mobile="true"] .air-dock-ai svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* 底栏变矮了，插件那条尾部状态条跟着抬上来 */
+.air-app[data-mobile="true"] .air-reader-tail {
+  bottom: calc(56px + env(safe-area-inset-bottom));
+}
+
+/* ---------- 3) AI 输入栏：一行起步、随输入长高 ---------- */
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-input {
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* 项目里没有全局 box-sizing: border-box，textarea 的 height 是"内容高"，
+   加上 padding 就变成 66px（用户说"输入栏太高"就是这个） */
+.air-app[data-mobile="true"] .air-ai-col textarea,
+.air-app[data-mobile="true"] .air-ai-col input,
+.air-app[data-mobile="true"] .air-chat-config select {
+  box-sizing: border-box;
+}
+
+.air-app[data-mobile="true"] .air-ai-col textarea {
+  min-height: 44px;
+  max-height: 96px;
+  height: 44px;
+  padding: 11px 12px;
+  line-height: 1.4;
+  overflow-y: auto;
+  resize: none;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-input button {
+  min-height: 44px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+/* ---------- 4) AI 设置：跟对话一起滚，但绝不把滚动漏给背后的页面 ----------
+   一开始想把它做成 position: fixed 的独立卡片，但半屏卡片的祖先有 backdrop-filter +
+   overflow:hidden —— fixed 的包含块变成那张卡片，顶部（含标题）被裁掉了（实测）。
+   改成"整块对话区滚动 + 设置块内联"：滚动条只有一个，且 overscroll 不外溢。 */
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 外层已经能滚了，列表就别再自己滚（两层滚动条会互相抢） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-list {
+  overflow: visible;
+  flex: 0 0 auto;
+}
+
+/* 输入条吸附在卡片底部 */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-input {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+/* 设置这一块：规规矩矩的一张内联卡片 */
+.air-app[data-mobile="true"] .air-chat-config {
+  border: 0;
+  border-radius: var(--m-r-card);
+  background: color-mix(in srgb, var(--m-grouped) 70%, transparent);
+  padding: 14px 14px 4px;
+  margin: 0 var(--m-pad) 10px;
+  max-height: none;
+  overflow: visible;
+}
+
+.air-app[data-mobile="true"] .air-chat-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 0 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--m-line);
+  font-size: var(--m-t-body);
+  font-weight: 600;
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-chat-config-head button {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-grouped);
+  color: var(--m-sub);
+  font-size: 14px;
+}
+
+/* 表单本身也收拾干净：标签在上、控件满宽、说明小一号灰字、字段之间靠发丝线分组 */
+.air-app[data-mobile="true"] .air-chat-config label {
+  display: block;
+  margin: 0 0 12px !important;
+  font-size: var(--m-t-sub) !important;
+  color: var(--m-sub);
+}
+
+.air-app[data-mobile="true"] .air-chat-config label > span:first-child {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--m-sub);
+  font-weight: 600;
+}
+
+.air-app[data-mobile="true"] .air-chat-config select,
+.air-app[data-mobile="true"] .air-chat-config input[type="text"],
+.air-app[data-mobile="true"] .air-chat-config input[type="password"],
+.air-app[data-mobile="true"] .air-chat-config input[type="number"],
+.air-app[data-mobile="true"] .air-chat-config input:not([type]) {
+  width: 100% !important;
+  margin-top: 0 !important;
+  min-height: 44px;
+  font-size: var(--m-t-body);
+}
+
+.air-app[data-mobile="true"] .air-chat-config input[type="checkbox"] {
+  width: auto !important;
+  min-height: 0;
+  margin-right: 8px;
+}
+
+/* 勾选类的行：图标 + 文字一行，不要 label 的块级样式 */
+.air-app[data-mobile="true"] .air-chat-config label:has(input[type="checkbox"]) {
+  display: flex !important;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 4px !important;
+  color: var(--m-text);
+  font-size: var(--m-t-body) !important;
+}
+
+.air-app[data-mobile="true"] .air-chat-config label:has(input[type="checkbox"]) > span:first-child {
+  display: none;
+}
+
+/* 说明文字 */
+.air-app[data-mobile="true"] .air-chat-config label span[style*="font-size: 11"] {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--m-t-cap) !important;
+  color: var(--m-sub) !important;
+  line-height: 1.5;
 }
 
