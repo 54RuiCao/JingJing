@@ -949,24 +949,29 @@ export default function App() {
    */
   useEffect(() => {
     if (!mobile || route === "reader") return;
-    // 挂在 document 上：内容是滚动容器，事件目标会变来变去（之前挂在 .air-main 上没生效）
-    const el = document as unknown as HTMLElement;
-    let start: { x: number; y: number; t: number } | null = null;
+    /**
+     * 用 **touch 事件**而不是 pointer（真机上 pointerup 常被滚动/缩放手势吃掉，
+     * 这就是"左右滑动没反应"的原因）。判定：横向位移 > 55、明显大于纵向、< 700ms。
+     */
     const ORDER: ("home" | "library" | "ai")[] = ["home", "library", "ai"];
-    const onDown = (e: PointerEvent) => {
-      start = { x: e.clientX, y: e.clientY, t: Date.now() };
+    let start: { x: number; y: number; t: number } | null = null;
+    const onStart = (e: TouchEvent) => {
+      const t0 = e.touches[0];
+      if (!t0) return;
+      start = { x: t0.clientX, y: t0.clientY, t: Date.now() };
     };
-    const onUp = (e: PointerEvent) => {
+    const onEnd = (e: TouchEvent) => {
       const s = start;
       start = null;
-      if (!s) return;
-      const dx = e.clientX - s.x;
-      const dy = e.clientY - s.y;
-      if (Date.now() - s.t > 600) return;
-      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+      const t1 = e.changedTouches[0];
+      if (!s || !t1) return;
+      const dx = t1.clientX - s.x;
+      const dy = t1.clientY - s.y;
+      if (Date.now() - s.t > 700) return;
+      if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
       const cur = ORDER.indexOf(mobileTab === "ai" && aiOpen ? "ai" : mobileTab);
       const next = ORDER[Math.max(0, Math.min(ORDER.length - 1, cur + (dx < 0 ? 1 : -1)))];
-      if (next === mobileTab) return;
+      if (!next || next === mobileTab) return;
       if (next === "ai") {
         setAiOpen(true);
         setMobileTab("ai");
@@ -975,11 +980,11 @@ export default function App() {
         setMobileTab(next);
       }
     };
-    el.addEventListener("pointerdown", onDown, true);
-    el.addEventListener("pointerup", onUp, true);
+    document.addEventListener("touchstart", onStart, { capture: true, passive: true });
+    document.addEventListener("touchend", onEnd, { capture: true, passive: true });
     return () => {
-      el.removeEventListener("pointerdown", onDown, true);
-      el.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("touchstart", onStart, { capture: true });
+      document.removeEventListener("touchend", onEnd, { capture: true });
     };
   }, [mobile, route, mobileTab, aiOpen]);
 
@@ -1687,6 +1692,16 @@ export default function App() {
    * P17：书签按钮要有"已加过"的样子（用户点完没变化，会以为没生效）。
    * 判定口径：本书里有书签，且它落在**当前这一章**（cfi 的节号对得上）。
    */
+  /**
+   * P18：书签是"记录这一页"的开关 —— 已记录这一页时再点就取消（用户要求）。
+   */
+  const toggleBookmark = useCallback(async () => {
+    const idx = sectionRef.current.sectionIndex;
+    const existing = annotationsRef.current.find((a) => a.kind === "bookmark" && sectionIndexOfCfi(a.cfi) === idx);
+    if (existing) await removeAnnotation(existing);
+    else await addBookmark();
+  }, [addBookmark, removeAnnotation]);
+
   const bookmarkedHere = useMemo(() => {
     const idx = sectionRef.current.sectionIndex;
     if (typeof idx !== "number") return false;
@@ -1792,7 +1807,7 @@ export default function App() {
             <button
               className="air-bookmark-btn"
               data-on={bookmarkedHere ? "true" : "false"}
-              onClick={() => void addBookmark()}
+              onClick={() => void toggleBookmark()}
               title={t("app.addBookmark")}
               aria-label={t("app.addBookmark")}
             >

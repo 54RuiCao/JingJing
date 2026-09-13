@@ -2687,3 +2687,76 @@ html[data-mobile="true"] body {
   color: var(--m-tint);
 }
 
+
+/* b) 阅读页顶栏：不要再空出一行（把手/图标贴紧，高度收到 46） */
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar {
+  min-height: 46px;
+  padding: 0 6px;
+}
+
+/* c) 底栏**只保留那个悬浮输入框**：外轮廓（背景/边框/投影）整条去掉，
+   这样不会出现"外框与输入框轮廓不一致"的双层边 */
+.air-app[data-mobile="true"] .air-reader-dock {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-top: 0;
+  box-shadow: none;
+  padding: 0 var(--m-pad) calc(8px + env(safe-area-inset-bottom));
+}
+
+/* 悬浮输入框自己带玻璃与发丝边（与阅读页 AI 卡片同一套材质） */
+.air-app[data-mobile="true"] .air-chat-launcher {
+  background: color-mix(in srgb, var(--m-panel) 62%, transparent);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), var(--m-hairline);
+}
+
+/* d) AI 面板整体再透一点 */
+.air-app[data-mobile="true"] .air-ai-col,
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  background: color-mix(in srgb, var(--m-panel) 58%, transparent);
+}
+
+/* 半屏里的设置块：字号小一档（用户说这里太大） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-config label,
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-config select,
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-config input {
+  font-size: var(--m-t-sub) !important;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-config-head {
+  font-size: var(--m-t-sub);
+}
+
+/* "重新装载"这类小按钮：字号再小一点、更紧凑 */
+.air-app[data-mobile="true"] .air-chat-ctx-btn {
+  font-size: var(--m-t-cap);
+  padding: 4px 10px;
+  min-height: 28px;
+}
+
+/* 从首页进 AI 页时的显示：整页 AI 的输入条与阅读页保持一致（悬浮胶囊 + 玻璃） */
+.air-app[data-mobile="true"] .air-ai-col:not([data-sheet="true"]) .air-chat-input {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-top: 0;
+  padding: 8px var(--m-pad) calc(12px + env(safe-area-inset-bottom));
+}
+
+.air-app[data-mobile="true"] .air-ai-col:not([data-sheet="true"]) textarea {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-panel) 62%, transparent);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: var(--m-hairline);
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col:not([data-sheet="true"]) .air-chat-input button {
+  border-radius: 999px;
+}
+
