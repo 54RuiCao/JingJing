@@ -2445,3 +2445,115 @@ html[data-mobile="true"] body {
   display: none;
 }
 
+
+/* ============================================================================
+ * P15：过渡动画 / 对齐 / 统一高度 / 滑动切换
+ * ========================================================================== */
+
+/* 1) 底栏收起：淡入淡出 + 缩放，搜索钮**位置不动**（钉在最右） */
+.air-app[data-mobile="true"] .air-tabbar-fab {
+  margin-left: auto;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-pill {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform-origin: left center;
+}
+
+.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-pill {
+  display: flex;            /* 不 display:none，才能做动画 */
+  opacity: 0;
+  transform: scale(0.88) translateX(-8px);
+  pointer-events: none;
+  position: absolute;       /* 退出布局，圆钮直接占位，搜索钮不动 */
+  left: 12px;
+  right: 78px;
+  bottom: 0;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-mini {
+  display: flex;
+  opacity: 0;
+  transform: scale(0.7);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-mini {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+/* 2) 抽屉：所有页签**同一个高度**（书组那一页的高度），切换时不跳 */
+.air-app[data-mobile="true"] .air-side {
+  height: 62dvh;
+  max-height: 62dvh;
+  transition: transform 0.22s ease, height 0.22s ease;
+}
+
+/* 3) 设置里的"阅读排版"：文字与滑块同一行、行距收紧 */
+.air-app[data-mobile="true"] .air-side-body > div > label {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px !important;
+  font-size: var(--m-t-sub) !important;
+  color: var(--m-sub);
+}
+
+.air-app[data-mobile="true"] .air-side-body > div > label > input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+.air-app[data-mobile="true"] .air-side-body > div > label > span:first-child {
+  flex: 0 0 auto;
+  min-width: 84px;
+}
+
+/* 这一段里的小标题也跟着紧一点 */
+.air-app[data-mobile="true"] .air-side-body h3 {
+  margin: 10px 0 6px;
+}
+
+/* 抽屉里的"主题""字体"这类按钮排一行、间距一致 */
+.air-app[data-mobile="true"] .air-side-body > div > div {
+  gap: 8px;
+}
+
+/* 4) 主区三页与抽屉页签都能左右滑：给滑动容器一个提示动画 */
+.air-app[data-mobile="true"] .air-main,
+.air-app[data-mobile="true"] .air-side-body {
+  touch-action: pan-y;
+}
+
+
+/* 阅读排版那三行：定宽标签 + 滑块，行距收紧（用户截图里文字在滑块下面，很乱） */
+.air-app[data-mobile="true"] .air-typo-set {
+  margin-bottom: 4px !important;
+}
+
+.air-app[data-mobile="true"] .air-typo-set label {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  margin: 0 !important;
+  padding: 4px 0;
+  font-size: var(--m-t-sub) !important;
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-typo-lab {
+  flex: 0 0 92px;
+  min-width: 92px;
+  color: var(--m-sub);
+}
+
+.air-app[data-mobile="true"] .air-typo-set input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 !important;
+}
+

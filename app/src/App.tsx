@@ -944,6 +944,46 @@ export default function App() {
   }, [runtime, themeId]);
 
   /**
+   * 左右滑动切换主区三页（首页 / 书库 / AI）—— 手机上比点底栏顺手。
+   * 只认"横向为主、位移够大、时间够短"的手势，纵向滚动与选字都不受影响。
+   */
+  useEffect(() => {
+    if (!mobile || route === "reader") return;
+    const el = document.querySelector(".air-main") as HTMLElement | null;
+    if (!el) return;
+    let start: { x: number; y: number; t: number } | null = null;
+    const ORDER: ("home" | "library" | "ai")[] = ["home", "library", "ai"];
+    const onDown = (e: PointerEvent) => {
+      start = { x: e.clientX, y: e.clientY, t: Date.now() };
+    };
+    const onUp = (e: PointerEvent) => {
+      const s = start;
+      start = null;
+      if (!s) return;
+      const dx = e.clientX - s.x;
+      const dy = e.clientY - s.y;
+      if (Date.now() - s.t > 600) return;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+      const cur = ORDER.indexOf(mobileTab === "ai" && aiOpen ? "ai" : mobileTab);
+      const next = ORDER[Math.max(0, Math.min(ORDER.length - 1, cur + (dx < 0 ? 1 : -1)))];
+      if (next === mobileTab) return;
+      if (next === "ai") {
+        setAiOpen(true);
+        setMobileTab("ai");
+      } else {
+        setAiOpen(false);
+        setMobileTab(next);
+      }
+    };
+    el.addEventListener("pointerdown", onDown, true);
+    el.addEventListener("pointerup", onUp, true);
+    return () => {
+      el.removeEventListener("pointerdown", onDown, true);
+      el.removeEventListener("pointerup", onUp, true);
+    };
+  }, [mobile, route, mobileTab, aiOpen]);
+
+  /**
    * 底栏随滚动收起：滚动容器是书库/首页那一列（`.air-library`），
    * 往下滚超过 40px 就收成一个圆钮，往回滚立刻展开。
    */
@@ -1609,6 +1649,40 @@ export default function App() {
         ["typo", mobile ? t("app.tabSettingsShort") : t("app.tabSettings")],
       ];
   const tab: SideTab = tabs.some(([id]) => id === sideTab) ? sideTab : tabs[0][0];
+
+  /**
+   * 抽屉里的页签（笔记 / 书组 / 设置…）也能左右滑。
+   */
+  useEffect(() => {
+    if (!mobile || !sheetOpen) return;
+    const el = document.querySelector(".air-side-body") as HTMLElement | null;
+    if (!el) return;
+    let start: { x: number; y: number; t: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      start = { x: e.clientX, y: e.clientY, t: Date.now() };
+    };
+    const onUp = (e: PointerEvent) => {
+      const s = start;
+      start = null;
+      if (!s) return;
+      const dx = e.clientX - s.x;
+      const dy = e.clientY - s.y;
+      if (Date.now() - s.t > 600) return;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+      const ids = tabs.map(([id]) => id);
+      const at = ids.indexOf(tab);
+      const next = ids[Math.max(0, Math.min(ids.length - 1, at + (dx < 0 ? 1 : -1)))];
+      if (next && next !== tab) setSideTab(next);
+    };
+    el.addEventListener("pointerdown", onDown, true);
+    el.addEventListener("pointerup", onUp, true);
+    return () => {
+      el.removeEventListener("pointerdown", onDown, true);
+      el.removeEventListener("pointerup", onUp, true);
+    };
+  }, [mobile, sheetOpen, tab, tabs]);
+
+
   /** 笔记总览（跨书）：按书分组，组内按时间倒序 */
   const noteGroups = useMemo(
     () => groupAnnotations(notes, { kind: noteFilter, query: noteQuery }),
@@ -2222,21 +2296,25 @@ export default function App() {
           </div>
 
           <h3>{t("app.typographyHeading")}</h3>
-          <div style={{ marginBottom: 8 }}>
-            <label>{t("app.fontSize", { n: typo.fontSize })}&nbsp;
+          {/* P15：文字与滑块**同一行对齐**（标签包一层 span 才能定宽），行距也收紧 */}
+          <div className="air-typo-set">
+            <label>
+              <span className="air-typo-lab">{t("app.fontSize", { n: typo.fontSize })}</span>
               <input type="range" min={12} max={32} value={typo.fontSize}
                 onChange={(e) => setTypo((t) => ({ ...t, fontSize: Number(e.target.value) }))} />
             </label>
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <label>{t("app.lineHeightLabel", { n: typo.lineHeight.toFixed(2) })}&nbsp;
+          <div className="air-typo-set">
+            <label>
+              <span className="air-typo-lab">{t("app.lineHeightLabel", { n: typo.lineHeight.toFixed(2) })}</span>
               <input type="range" min={1.2} max={2.4} step={0.05} value={typo.lineHeight}
                 onChange={(e) => setTypo((t) => ({ ...t, lineHeight: Number(e.target.value) }))} />
             </label>
           </div>
-          <div style={{ marginBottom: 8 }}>
+          <div className="air-typo-set">
             {/* 文案里已经带了 em，这里再补一个就成了"2emem"（真机截图里看到的） */}
-            <label>{t("app.indentLabel", { n: typo.indent })}&nbsp;
+            <label>
+              <span className="air-typo-lab">{t("app.indentLabel", { n: typo.indent })}</span>
               <input type="range" min={0} max={3} step={0.5} value={typo.indent}
                 onChange={(e) => setTypo((t) => ({ ...t, indent: Number(e.target.value) }))} />
             </label>
