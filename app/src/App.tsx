@@ -1328,12 +1328,20 @@ export default function App() {
    */
   const onTapZone = useCallback(
     (zone: "prev" | "next" | "center") => {
-      if (!mobile || flow !== "paginated") return;
+      if (!mobile) return;
       activityRef.current.lastActiveAt = Date.now();
-      if (zone === "prev") void handleRef.current?.prev();
-      else if (zone === "next") void handleRef.current?.next();
+      /**
+       * 滚动模式下**也要能唤出 chrome**（用户实测：滚动模式点屏幕没反应）——
+       * 之前这里是"flow !== paginated 直接 return"，把中间那次点击也一起挡掉了。
+       * 现在只让"左右两侧翻页"依赖分页模式；中间点击是显示/隐藏控件，两种模式都该生效。
+       */
+      if (zone === "prev" || zone === "next") {
+        if (flow !== "paginated") return;
+        void (zone === "prev" ? handleRef.current?.prev() : handleRef.current?.next());
+        return;
+      }
       // 中间一次点击：顶栏 + 底栏（含 AI 入口）一起出现/收起（P7，照参考阅读器的习惯）
-      else setChromeOn((on) => {
+      setChromeOn((on) => {
         if (chromeTimer.current) window.clearTimeout(chromeTimer.current);
         if (!on) chromeTimer.current = window.setTimeout(() => setChromeOn(false), 4000);
         return !on;
@@ -1651,7 +1659,8 @@ export default function App() {
         <div
           className="air-reader-col"
           data-chrome={chromeOn ? "true" : "false"}
-          style={{ display: route === "reader" && !aiOpen ? "flex" : "none" }}
+          // 阅读页里的 AI 是**半屏卡片**，正文要留在上面看得见 —— 所以这里只按 route 决定
+          style={{ display: route === "reader" ? "flex" : "none" }}
         >
         {/* P6 手机端：顶栏下沿一条 2px 的进度线（参考里的进度是"存在感很低"的那种） */}
         <div className="air-reader-progress">
@@ -1797,8 +1806,26 @@ export default function App() {
         </div>
 
         {/* ---------- P7 手机端 AI 页（底栏第三格；参考里那一格是书店） ---------- */}
+        {mobile && aiOpen && route === "reader" && (
+          // 半屏卡片的遮罩：点一下关掉（照参考 App 的底部卡片）
+          <div
+            className="air-ai-mask"
+            onClick={() => {
+              setAiOpen(false);
+            }}
+          />
+        )}
         {mobile && (
-          <div className="air-ai-col" style={{ display: aiOpen ? "flex" : "none" }}>
+          <div
+            className="air-ai-col"
+            /**
+             * 阅读页里 AI 是**半屏卡片**（盖在正文下半部，正文还看得见）——
+             * 参考 App 的阅读器里所有面板都是这个形态；书库/首页里它才是整页。
+             */
+            data-sheet={route === "reader" ? "true" : "false"}
+            style={{ display: aiOpen ? "flex" : "none" }}
+          >
+            <div className="air-ai-grab" aria-hidden />
             <div className="air-page-head">
               <h1 className="air-page-title">{t("app.tabAi")}</h1>
               <button
@@ -2185,9 +2212,12 @@ export default function App() {
       {/* ---------- P7 手机端底部导航（参考设计的浮动胶囊） ----------
           三格：首页 / 书库 / AI（参考里第三格是书店，按用户要求换成 AI）+ 右侧搜索圆钮。 */}
       {mobile && (
-        // 阅读页里不显示底栏（那一屏有自己的底栏 dock）；AI 页盖在阅读页上时仍要显示，
-        // 否则打开 AI 之后就没有"回到书库/首页"的路了
-        <nav className="air-tabbar" style={{ display: route === "reader" && !aiOpen ? "none" : "flex" }}>
+        /**
+         * 底栏**在阅读页一律不显示**（用户实测的坑：阅读里点开 AI 之后底栏冒出来，
+         * 接着点"AI 下面那几栏"其实点在底栏上 → 一下子跳回首页/书库，人还在阅读里却被弹出去）。
+         * 阅读页的出口是顶栏的返回键与抽屉，不需要底栏。
+         */
+        <nav className="air-tabbar" style={{ display: route === "reader" ? "none" : "flex" }}>
           <div className="air-tabbar-pill">
             {(
               [

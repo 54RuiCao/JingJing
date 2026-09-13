@@ -1296,3 +1296,70 @@ html[data-mobile="true"] body {
   white-space: nowrap;
 }
 
+
+/* ============================================================================
+ * P8：阅读页里的 AI 改成**半屏卡片**（照参考 App 的底部卡片形态）
+ *   整页 AI（书库/首页那一格）不变；阅读里它是盖在正文下半部的一张卡，
+ *   上面露出正文，点遮罩或 ✕ 关掉。
+ * ========================================================================== */
+
+.air-app[data-mobile="true"] .air-ai-grab {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  height: 62dvh;
+  max-height: 62dvh;
+  border-radius: var(--m-r-sheet) var(--m-r-sheet) 0 0;
+  box-shadow: var(--m-shadow-sheet);
+  background: var(--m-panel);
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: air-sheet-in 0.2s ease;
+}
+
+@keyframes air-sheet-in {
+  from {
+    transform: translateY(16px);
+    opacity: 0.7;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-ai-grab {
+  display: block;
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--m-line);
+  margin: 6px auto 0;
+  flex: 0 0 auto;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-page-head {
+  padding-top: 4px;
+  padding-bottom: 2px;
+}
+
+/* 半屏卡片里标题不必是"大标题"，收到 nav 那一档 */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-page-title {
+  font-size: var(--m-t-nav);
+  font-weight: var(--m-w-nav);
+  letter-spacing: -0.2px;
+}
+
+.air-app[data-mobile="true"] .air-ai-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  background: rgba(0, 0, 0, 0.22);
+}
+
