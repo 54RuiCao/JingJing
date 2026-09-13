@@ -12,6 +12,7 @@ import { collectReport, saveReport } from "./reader/p0Report";
 import { txtToEpubFile, type TxtImportStats } from "./reader/txtToEpub";
 import { LibraryPage } from "./library/LibraryPage";
 import { ChatPanel, type BookContext, type ContextLoad } from "./ai/ChatPanel";
+import { reportSlotFailure } from "./ai/steer";
 import { buildBookContext, locateHits, type BookContextData, type ManifestEntry } from "./ai/bookContext";
 import { createToolHost, type ToolHostDeps } from "./ai/toolHost";
 import { createSkillHost } from "./skills/host";
@@ -774,6 +775,8 @@ export default function App() {
   /** 某个插件挂的 UI 渲染崩了：内核会把它从格子里摘掉，这里只负责说出来 */
   const onSlotError = useCallback((slot: string, entry: SlotEntry, error: unknown) => {
     console.error("[slot] " + slot + " 的「" + (entry.label ?? entry.owner) + "」渲染失败，已从格子里摘掉", error);
+    // P5：推回给写这个插件的 AI（DSH 的 steerRenderFailure）。否则它会以为成功、用户只看到空白。
+    reportSlotFailure(slot, entry.owner, entry.label, error);
   }, []);
 
   /**

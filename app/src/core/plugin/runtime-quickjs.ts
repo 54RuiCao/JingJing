@@ -104,8 +104,8 @@ export const QUICKJS_PRELUDE = [
   // 只 trap 函数型全局；window/document/process 这类数据型保持不存在，免得 typeof 探测被骗。
   "(function () {",
   "  var trap = function (name, message) { globalThis[name] = function () { throw new Error(message); }; };",
-  "  trap('setTimeout', '沙箱里没有 setTimeout。宿主暂时没接计时器能力：要周期刷新请让用户操作触发，或等 ctx.interval 接好（见 plugin_inspect）');",
-  "  trap('setInterval', '沙箱里没有 setInterval。同上：目前只能由用户操作 / ctx.slots.refresh() 驱动重绘');",
+  "  trap('setTimeout', '沙箱里没有 setTimeout。要定时请用 ctx.timeout(fn, ms)：它返回一个 handle，可用 ctx.clear(handle) 取消，插件卸载时宿主会自动清理');",
+  "  trap('setInterval', '沙箱里没有 setInterval。周期执行请用 ctx.interval(fn, ms)（最小 100ms，卸载自动清理）；只跑一次用 ctx.timeout(fn, ms)');",
   "  trap('clearTimeout', '沙箱里没有 clearTimeout');",
   "  trap('clearInterval', '沙箱里没有 clearInterval');",
   "  trap('requestAnimationFrame', '沙箱里没有 requestAnimationFrame。画完调 ctx.slots.refresh() 触发重渲染');",
@@ -114,6 +114,9 @@ export const QUICKJS_PRELUDE = [
   "  trap('require', '沙箱里没有 require/module：插件就是单文件模块，没有 npm 依赖。要用宿主能力先调 plugin_inspect 看清单，再从 ctx.* 取');",
   "  trap('importScripts', '沙箱里没有 importScripts：插件是单文件，不要加载外部脚本');",
   "})();",
+  // P5 计时器回调表：宿主函数的入参句柄会被引擎释放，所以函数存在 VM 里，宿主只传编号
+  "globalThis.__aireaderTimerCbs = Object.create(null);",
+  "globalThis.__aireaderTimerSeq = 0;",
   "globalThis.__aireaderCtx = function (host) {",
   "  var parse = function (s) { return s === \"\" || s === undefined || s === null ? undefined : JSON.parse(s); };",
   "  var unwrap = function (raw) {",
@@ -220,6 +223,26 @@ export const QUICKJS_PRELUDE = [
   "      },",
   "      refresh: function () { must(host.uiRefresh('')); },",
   "    },",
+    // P5：宿主提供的计时器（照 DSH 的 timer 服务）。返回 handle，用 ctx.clear(handle) 取消；
+    // 忘了取消也没关系：插件卸载时宿主会统一清掉（interval 是最常见的泄漏源）。
+    "    timeout: function (fn, ms) {",
+    "      if (typeof fn !== 'function') throw new Error('ctx.timeout(fn, ms) 的第一个参数必须是函数');",
+    "      var n = ++globalThis.__aireaderTimerSeq; globalThis.__aireaderTimerCbs[n] = fn;",
+    "      var r = JSON.parse(String(host.timer('timeout', n, Number(ms))));",
+    "      if (r.error) throw new Error(r.error);",
+    "      return r.id;",
+    "    },",
+    "    interval: function (fn, ms) {",
+    "      if (typeof fn !== 'function') throw new Error('ctx.interval(fn, ms) 的第一个参数必须是函数');",
+    "      var n = ++globalThis.__aireaderTimerSeq; globalThis.__aireaderTimerCbs[n] = fn;",
+    "      var r = JSON.parse(String(host.timer('interval', n, Number(ms))));",
+    "      if (r.error) throw new Error(r.error);",
+    "      return r.id;",
+    "    },",
+    "    clear: function (handle) {",
+    "      var r = JSON.parse(String(host.clearTimer(String(handle))));",
+    "      if (r.error) throw new Error(r.error);",
+    "    },",
   "    on: function () {",
   "      throw new Error('ctx.on 还没接入：动态包不能订阅宿主事件（要重渲染就调 ctx.slots.refresh()）');",
   "    },",
@@ -351,6 +374,9 @@ export class DynamicPluginInstance {
   /** P3.4 UI 桥：一个 handle = 一次 ctx.slots.register（渲染函数 + 事件处理器表 + 订阅者） */
   private uiHandles = new Map<string, UiHandle>();
   private uiSeq = 0;
+  /** P5 计时器：key = 给插件的 handle，value = 取消函数。卸载时统一清（interval 最易泄漏） */
+  private timers = new Map<string, () => void>();
+  private timerSeq = 0;
   /** 正在停止（跑 disposer 期间）：不再接受新的外部调用，但插件自己的清理还能用宿主 API */
   private stopping = false;
   private stopped = false;
@@ -728,6 +754,74 @@ export class DynamicPluginInstance {
         }
         disposeHandle.dispose();
         return vm.newString("");
+      }),
+    );
+
+    /**
+     * P5 计时器（照 DSH 的 timer 服务）：**宿主提供**，插件不用自己造。
+     *
+     * 实现要点：宿主函数的**入参句柄在返回后就被引擎释放**，所以回调不靠句柄传递 ——
+     * prelude 把函数存进 VM 自己的表 `__aireaderTimerCbs[n]`，这里只收编号 n；
+     * 到点用 `vm.evalCode` 现场取出来调（表达式只由数字拼成，没有注入面）。
+     * 这样既不用持有句柄，也不会在引擎释放后触发 GC 断言。
+     */
+    set(
+      "timer",
+      vm.newFunction("hostTimer", (kindHandle, indexHandle, msHandle) => {
+        const kind = String(vm.dump(kindHandle));
+        const index = Number(vm.dump(indexHandle));
+        const ms = Number(vm.dump(msHandle));
+        if (this.stopped || this.stopping) return vm.newString(JSON.stringify({ error: "插件正在停止，不能再起定时器" }));
+        if (kind !== "timeout" && kind !== "interval") {
+          return vm.newString(JSON.stringify({ error: "只有 ctx.timeout / ctx.interval 可用，收到：" + kind }));
+        }
+        if (!Number.isFinite(ms) || ms < 0) {
+          return vm.newString(JSON.stringify({ error: kind + " 的毫秒数不合法：" + String(vm.dump(msHandle)) }));
+        }
+        // interval 下限 100ms（别让 1ms 定时器把界面拖死），上限 1 小时
+        const delay = kind === "interval" ? Math.min(Math.max(ms, 100), 3_600_000) : Math.min(ms, 3_600_000);
+        const id = "t" + ++this.timerSeq;
+        const fire = () => {
+          if (this.stopped || this.stopping || !this.timers.has(id) || !vm.alive) return;
+          if (kind === "timeout") this.timers.delete(id);
+          try {
+            const result = vm.evalCode(
+              "(function () { var f = globalThis.__aireaderTimerCbs[" + index + "];" +
+                " if (typeof f !== 'function') return 'missing';" +
+                " try { f(); } catch (e) { return String(e && e.message ? e.message : e); }" +
+                " if (" + JSON.stringify(kind) + " === 'timeout') delete globalThis.__aireaderTimerCbs[" + index + "];" +
+                " return ''; })()",
+            );
+            if (result.error) {
+              this.runtime.log("warn", "定时器回调抛错：" + this.describeError(result.error));
+              result.error.dispose();
+            } else {
+              const note = String(vm.dump(result.value));
+              result.value.dispose();
+              if (note && note !== "missing") this.runtime.log("warn", "定时器回调抛错：" + note);
+            }
+          } catch (e) {
+            this.runtime.log("warn", "定时器回调无法执行：" + String(e instanceof Error ? e.message : e));
+          }
+        };
+        const real = kind === "interval" ? setInterval(fire, delay) : setTimeout(fire, delay);
+        this.timers.set(id, () => {
+          if (kind === "interval") clearInterval(real);
+          else clearTimeout(real);
+        });
+        return vm.newString(JSON.stringify({ id }));
+      }),
+    );
+
+    set(
+      "clearTimer",
+      vm.newFunction("hostClearTimer", (idHandle) => {
+        const id = String(vm.dump(idHandle));
+        const cancel = this.timers.get(id);
+        if (!cancel) return vm.newString(JSON.stringify({ error: "没有这个计时器 handle：" + id + "（可能已经触发过了）" }));
+        cancel();
+        this.timers.delete(id);
+        return vm.newString(JSON.stringify({ ok: true }));
       }),
     );
 
@@ -1246,6 +1340,15 @@ export class DynamicPluginInstance {
     // 先标"正在停止"：新的外部调用被挡住，但插件自己的 disposer 还能用宿主 API
     //（否则 disposer 里的一句 ctx.log 会因为"插件已停止"被静默丢掉 —— 实测踩到）
     this.stopping = true;
+    // P5：先停计时器（回调可能在 VM 释放后才触发）。插件自己 clear 过的不受影响，没 clear 的宿主兜底。
+    for (const cancel of this.timers.values()) {
+      try {
+        cancel();
+      } catch {
+        /* 清理失败不该影响卸载 */
+      }
+    }
+    this.timers.clear();
     try {
       const result = this.vm.evalCode("(async () => await __aireaderRunDisposers())()", this.spec.pluginId + "/dispose");
       if (result.error) {

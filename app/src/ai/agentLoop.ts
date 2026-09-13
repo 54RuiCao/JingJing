@@ -36,6 +36,8 @@ export type AgentEvent =
    * 纯文本被截 → 答案戛然而止。用户与模型都需要知道"是被上限拦了，不是写错了"。
    */
   | { type: "truncated"; message: string }
+  /** P5：宿主侧插话（steer）—— 例如"你刚才挂上去的界面渲染失败了"，界面上提示一下 */
+  | { type: "notice"; message: string }
   | { type: "error"; message: string };
 
 export type AgentRunResult = {
@@ -64,6 +66,12 @@ export type AgentRunOptions = {
   /** 工具可见性作用域（P3.0）：可见掩码与执行都按它解析，默认 "default" */
   scopeId?: string;
   onEvent?: (e: AgentEvent) => void;
+  /**
+   * P5 steer 通道：每一步开始前调一次，返回的文本会作为 **user 消息**插进这一轮
+   * （DSH 的 steer 同理：把宿主侧失败推回给模型，让它当场自己修）。
+   * 目前用于"插件界面渲染失败" —— 写插件的 AI 必须知道它写崩了。
+   */
+  steer?: () => string[];
 };
 
 /** 首尾保留 + 省略标记；保证 head + marker + tail ≤ maxChars（每次裁剪都严格变小） */
@@ -235,6 +243,19 @@ export async function runAgentLoop(o: AgentRunOptions): Promise<AgentRunResult> 
     }
     steps = step;
     emit({ type: "step", step });
+
+    /**
+     * P5：把"宿主侧的失败"插进这一轮（DSH 的 steer）。
+     * 目前只有一条来源：插件界面渲染失败（写插件的 AI 必须知道自己写崩了，
+     * 否则它会以为成功、用户看到空白格子）。取走即清空，不会重复打扰。
+     */
+    if (o.steer) {
+      const steered = o.steer();
+      if (steered.length) {
+        messages.push({ role: "user", content: steered.join("\n\n") });
+        emit({ type: "notice", message: steered.join(" ") });
+      }
+    }
 
     let stepText = "";
     let calls: ToolCall[] = [];

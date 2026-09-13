@@ -259,6 +259,46 @@ const GOOD_CODE = [
   await h.container.dispose();
 }
 
+
+// ---------- 1c) P5：宿主计时器 ----------
+//
+// 为什么要有：插件沙箱里没有 setTimeout，"AI 想定时"是最高频的需求之一。
+// 宿主提供 ctx.timeout / ctx.interval，handle 用 ctx.clear 取消，**卸载时宿主兜底清理**
+// （interval 是插件最典型的泄漏源）。这条测试钉住"真的跑"和"卸载后不再跑"。
+{
+  const h = await makeHarness({ capabilities: ["log.write"] });
+  const code = [
+    "function apply(ctx) {",
+    "  ctx.timeout(function () { ctx.log('一次性跑了'); }, 20);",
+    "  ctx.interval(function () { ctx.log('心跳'); }, 110);",
+    "  try { ctx.timeout('不是函数', 10); } catch (e) { ctx.log('参数校验:' + e.message); }",
+    "  try { setTimeout(function () {}, 10); } catch (e) { ctx.log('陷阱:' + e.message); }",
+    "}",
+  ].join("\n");
+  const inst = h.runtime.createInstance({ pluginId: PLUGIN_ID, version: VERSION, code, capabilities: ["log.write"] });
+  await inst.load();
+  await inst.apply({});
+  check("ctx.timeout 校验第一个参数", h.logs.some((l) => l.includes("参数校验:") && l.includes("必须是函数")));
+  check(
+    "写 setTimeout 时教它用 ctx.timeout",
+    h.logs.some((l) => l.includes("陷阱:") && l.includes("ctx.timeout")),
+    JSON.stringify(h.logs.filter((l) => l.includes("陷阱")).slice(0, 2)),
+  );
+  await new Promise((r) => setTimeout(r, 260));
+  check("ctx.timeout 的回调真的跑了", h.logs.some((l) => l.includes("一次性跑了")), JSON.stringify(h.logs.slice(-4)));
+  check("ctx.interval 真的在跑", h.logs.some((l) => l.includes("心跳")));
+  await inst.stop();
+  const beats = h.logs.filter((l) => l.includes("心跳")).length;
+  await new Promise((r) => setTimeout(r, 300));
+  check(
+    "卸载后 interval 不再触发（宿主兜底清理）",
+    h.logs.filter((l) => l.includes("心跳")).length === beats,
+    "停止后又多跑了 " + (h.logs.filter((l) => l.includes("心跳")).length - beats) + " 次",
+  );
+  await h.runtime.dispose();
+  await h.container.dispose();
+}
+
 // ---------- 1b) 阅读活动（P3.7）：能力门禁 + 值透传 ----------
 //
 // 为什么要有这个 op：插件沙箱里连 setTimeout 都没有，插件自己没法"记阅读时长"；

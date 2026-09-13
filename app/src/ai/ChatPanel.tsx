@@ -8,6 +8,7 @@ import {
   type ProviderId,
   type Usage,
 } from "./provider";
+import { drainSteer, reportSlotFailure } from "./steer";
 import { runAgentLoop } from "./agentLoop";
 import { splitCitations } from "./citations";
 import { READ_TOOL_NAMES, type ToolRegistry } from "./tools";
@@ -64,9 +65,15 @@ type Props = {
   onJumpToChapter?: (n: number) => void;
 };
 
-/** 插件挂在消息旁的 UI 崩了：内核已把它摘掉，这里只报一声 */
+/**
+ * 插件挂在消息旁的 UI 崩了：内核已把它摘掉，这里**报给用户 + 推回给写它的 AI**。
+ *
+ * P5：以前只 `console.error` —— 用户看到空白格子，写插件的 AI 却以为成功（DSH 的
+ * steerRenderFailure 就是解决这个：消息里直接带修复指令）。按 插件+槽位+错因 去重，避免刷屏。
+ */
 function onChatSlotError(slot: string, entry: SlotEntry, error: unknown) {
   console.error("[slot] " + slot + " 的「" + (entry.label ?? entry.owner) + "」渲染失败，已从格子里摘掉", error);
+  reportSlotFailure(slot, entry.owner, entry.label, error);
 }
 
 /** 回答正文：把 [CH n] 渲染成可点击的锚点 */
@@ -439,6 +446,8 @@ export function ChatPanel({ bookId, context, load, onReload, registry, skills, a
 
     try {
       await runAgentLoop({
+        // P5：每步开始前把宿主侧插话（渲染失败等）交给模型，让它当场自己修
+        steer: drainSteer,
         cfg: providerConfig,
         messages: payload,
         registry,
