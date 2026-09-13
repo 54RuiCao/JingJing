@@ -2768,7 +2768,7 @@ html[data-mobile="true"] body {
 
 .air-app[data-mobile="true"] .air-tabbar-pill {
   flex: 0 1 auto;
-  min-width: 0;
+  min-width: 250px;
   padding: 4px 8px;
 }
 
@@ -2805,5 +2805,82 @@ html[data-mobile="true"] body {
   height: auto;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+
+/* ============================================================================
+ * P20：底栏偏移修掉 + 整页 AI 的输入框照 ChatGPT iOS 23 做成悬浮胶囊
+ *  （这一节放在最后，覆盖前面几轮留下的重复规则）
+ * ========================================================================== */
+
+/* ---------- 1) 底栏：永远留在屏幕内 ----------
+   之前只写了 env(safe-area-inset-bottom)：沉浸式下这个值可能是 0，
+   在某些机型上 fixed 的底边会落到可视区之外（截图里"任务栏被切掉一半"）。
+   这里给一个最小 10px 的兜底，并同时抬一点点。 */
+.air-app[data-mobile="true"] .air-tabbar {
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + max(env(safe-area-inset-bottom), 10px));
+  justify-content: center;
+}
+
+/* 页面内容给底栏留的位置也要跟它对齐（74px ≈ 胶囊 54 + 上下留白 + 一点点呼吸） */
+.air-app[data-mobile="true"] .air-library,
+.air-app[data-mobile="true"] .air-ai-col {
+  padding-bottom: calc(74px + max(env(safe-area-inset-bottom), 10px));
+}
+
+/* 半屏卡片不受这条影响（它自己贴底） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  padding-bottom: 0;
+}
+
+/* ---------- 2) 整页 AI 的输入条：悬浮胶囊（ChatGPT 那个样子） ---------- */
+
+.air-app[data-mobile="true"] .air-ai-col:not([data-sheet="true"]) .air-chat-input {
+  margin: 8px var(--m-pad) 0;
+  padding: 0;
+  gap: 8px;
+  align-items: flex-end;
+  background: transparent;
+  border-top: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.air-app[data-mobile="true"] .air-ai-col:not([data-sheet="true"]) textarea {
+  min-height: 46px;
+  height: 46px;
+  max-height: 96px;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: color-mix(in srgb, var(--m-panel) 72%, transparent);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), var(--m-hairline);
+  font-size: var(--m-t-body);
+}
+
+/* 发送按钮：圆形（参考里右边是一个实心圆钮，不是长条药丸） */
+.air-app[data-mobile="true"] .air-ai-col:not([data-sheet="true"]) .air-chat-input button {
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--m-tint);
+  color: #fff;
+  font-size: var(--m-t-sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 半屏卡片里的输入条保持上一轮的样子（贴底、36px） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-input {
+  margin: 8px 0 0;
+  background: var(--m-glass-strong);
+  border-top: 1px solid var(--m-line);
 }
 
