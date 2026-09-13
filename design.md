@@ -207,3 +207,51 @@
 - ❌ 卡片上压"移除/归类"按钮 → 封面被压得看不清（参考里这些都在 ••• 里）
 - ❌ 详情/面板整页替换正文 → 阅读位置与上下文被打断（改成半屏卡片）
 - ❌ 输入框与文本贴边（AI 半屏卡片第一版就是这样）→ 一律 18px 内边距
+
+---
+
+## 8. 参考：Apple HIG 要点（本轮查证后落地的部分）
+
+来源：Apple Developer Documentation — Human Interface Guidelines 的
+[Sheets](https://developer.apple.com/design/human-interface-guidelines/sheets)、
+[Materials](https://developer.apple.com/design/human-interface-guidelines/materials)、
+[Layout](https://developer.apple.com/design/human-interface-guidelines/layout)。
+
+### 8.1 材料（Materials）：控件层浮在内容层之上
+
+> "A material is a visual effect that creates a sense of depth, layering, and hierarchy between
+> foreground and background elements."
+> "…forms a distinct functional layer for controls and navigation elements — like tab bars and
+> sidebars — that **floats above the content layer**… allows content to **scroll and peek through
+> from beneath** these elements."
+
+**落到我们这里**：
+- 阅读页的顶栏/底栏是**绝对定位、浮在正文之上**的，**不占文档流**——
+  点一下出现时正文一动不动（曾经是"顶栏挤下去 61px"，连阅读位置都会跳）。
+- 内容从下面"透"过去：栏是毛玻璃的，底部再接一条发丝线。
+- **不要在内容层用毛玻璃**（普通卡片、封面、正文不加模糊）；"Use Liquid Glass effects sparingly"。
+
+### 8.2 卡片（Sheets）：一次只开一个，且有"档位"
+
+> "A sheet helps people perform a scoped task that's closely related to their current context."
+> "Display only one sheet at a time from the main interface."
+> "When people close a sheet, they expect to return to the parent view."
+
+**落到我们这里**：
+- 阅读页里的面板（AI / 目录 / 批注 / 排版）一律是**半屏卡片**，不整页替换正文；关闭后回到原处。
+- 卡片有**两档**：medium（62dvh）/ large（88dvh）；抓手可**拖**（上拖放大、下拖关闭）也可**点**（切档）。
+- 点遮罩关闭；进场 `.22s ease`。
+- 半屏里**压缩辅助信息**（技能条收起、上下文条限一行），把高度留给消息区（实测多出 55px）。
+
+### 8.3 布局与触控（Layout）
+
+> "People often start by viewing content in reading order… place the most important items near the
+> top and leading side."
+> "Align elements to make them easier to scan, and use indentation to convey hierarchy."
+> 尊重系统 safe area 与边距。
+
+**落到我们这里**：
+- 触控目标 **≥ 44×44pt**（顶栏按钮、圆形按钮、列表行都按这条；小图标靠 padding 撑命中区）。
+- 一切内容对齐到 **`--m-pad` 18px** 这条竖线；层级的差别用**字重与字号**表达，不用缩进堆叠。
+- 阅读页正文顶部留出安全区，浮起来的顶栏压在页边（foliate 自己的 48px 页边）上，不盖正文。
+

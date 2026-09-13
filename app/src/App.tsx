@@ -215,6 +215,12 @@ export default function App() {
   const [typoSheet, setTypoSheet] = useState(false);
   /** 底栏那个搜索圆钮：切到书库并把焦点送进搜索框（参考里它是独立圆钮，不是一个页签） */
   const [searchFocus, setSearchFocus] = useState(false);
+  /**
+   * P10：阅读页 AI 半屏卡片的**档位**（照 HIG 的 sheet detents）。
+   * 抓手可拖可点：往上拖/点一下 → 大档（88dvh）；往下拖 → 关掉。
+   */
+  const [aiSheetSize, setAiSheetSize] = useState<"medium" | "large">("medium");
+  const sheetDragY = useRef<number | null>(null);
   const chromeTimer = useRef<number | null>(null);
   const hideChrome = useCallback(() => {
     if (chromeTimer.current) window.clearTimeout(chromeTimer.current);
@@ -1823,9 +1829,27 @@ export default function App() {
              * 参考 App 的阅读器里所有面板都是这个形态；书库/首页里它才是整页。
              */
             data-sheet={route === "reader" ? "true" : "false"}
+            data-size={aiSheetSize}
             style={{ display: aiOpen ? "flex" : "none" }}
           >
-            <div className="air-ai-grab" aria-hidden />
+            {/* 抓手：拖上去放大、拖下去关掉、点一下在两档之间切换（HIG 的 sheet detents） */}
+            <div
+              className="air-ai-grab"
+              aria-hidden
+              onPointerDown={(e) => {
+                sheetDragY.current = e.clientY;
+                e.currentTarget.setPointerCapture?.(e.pointerId);
+              }}
+              onPointerUp={(e) => {
+                const start = sheetDragY.current;
+                sheetDragY.current = null;
+                if (start === null) return;
+                const dy = e.clientY - start;
+                if (dy <= -36) setAiSheetSize("large");
+                else if (dy >= 64) setAiOpen(false);
+                else if (Math.abs(dy) < 12) setAiSheetSize((s) => (s === "medium" ? "large" : "medium"));
+              }}
+            />
             <div className="air-page-head">
               <h1 className="air-page-title">{t("app.tabAi")}</h1>
               <button

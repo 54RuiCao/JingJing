@@ -1520,3 +1520,94 @@ html[data-mobile="true"] body {
   padding: 0 18px;
 }
 
+
+/* ============================================================================
+ * P10：照 Apple HIG 再修一轮（要点见 design.md §8）
+ *   · 材料（Materials）：控件与导航**浮在内容层之上**，内容从下面滚过去，不被推开
+ *   · 卡片（Sheets）：有档位（detents）、抓手可拖可点、点遮罩关闭
+ *   · 触控目标 ≥ 44pt
+ * ========================================================================== */
+
+/* ---------- 1) 阅读页顶栏：从"占位推开正文"改成"浮在正文之上" ----------
+   原来它在文档流里，点一下控件正文就被顶下去 61px（阅读位置会跳）。
+   HIG 的做法是控件层浮在内容层之上，内容照旧在下面滚。 */
+.air-app[data-mobile="true"] .air-reader-shell {
+  position: relative;
+}
+
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 8;
+  box-shadow: 0 1px 0 var(--m-line);
+}
+
+/* 正文区顶部留出"状态栏那一条"（阅读引擎自己还有 48px 页边），
+   这样浮起来的顶栏压在页边上，不会盖住第一行字 */
+.air-app[data-mobile="true"] .air-reader-col {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* ---------- 2) AI 半屏卡片：两档 + 抓手可拖 ---------- */
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  height: 62dvh;
+  max-height: 62dvh;
+  transition: height 0.22s ease, max-height 0.22s ease;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"][data-size="large"] {
+  height: 88dvh;
+  max-height: 88dvh;
+}
+
+/* 抓手做成可抓的（触控目标按 HIG ≥44pt，但它本身是装饰，用 padding 撑开命中区） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-ai-grab {
+  padding: 8px 0 6px;
+  margin: 0;
+  background-clip: content-box;
+  cursor: grab;
+  touch-action: none;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-ai-grab:active {
+  cursor: grabbing;
+}
+
+/* 半屏里把"辅助信息"压缩：技能条收起、上下文条限一行 —— 消息区能多出 ~90px */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-skills {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-ctx {
+  max-height: 44px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-list {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- 3) 触控目标：HIG 建议 ≥ 44pt ---------- */
+
+.air-app[data-mobile="true"] .air-bar button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.air-app[data-mobile="true"] .air-lib-gear,
+.air-app[data-mobile="true"] .air-page-close {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
