@@ -191,6 +191,49 @@ export function LibraryPage({
         </select>
       </div>
 
+      {/* P6 手机版头部：大标题 + 计数 + 分段控件 + 搜索/导入。
+          桌面继续用上面那条 .air-bar（同一份 state，两套控件；CSS 按 data-mobile 二选一显示）。 */}
+      <div className="air-lib-head">
+        <div className="air-lib-headrow">
+          <h1 className="air-lib-title">{t("lib.shelfTitle")}</h1>
+          <span className="air-lib-count">
+            {activeGroup
+              ? t("lib.shownCount", { shown: shown.length, total: books.length })
+              : t("lib.totalCount", { n: books.length })}
+          </span>
+        </div>
+        {activeGroup && (
+          <button
+            className="air-chip"
+            title={t("lib.clearGroupFilter")}
+            onClick={() => {
+              setTagging(null);
+              onClearGroup?.();
+            }}
+          >
+            {t("lib.groupFilter", { name: activeGroup.name })}
+          </button>
+        )}
+        <div className="air-segmented" role="tablist">
+          {(["recent", "added", "title"] as const).map((k) => (
+            <button key={k} data-active={sort === k} onClick={() => setSort(k)}>
+              {t(k === "recent" ? "lib.sortRecent" : k === "added" ? "lib.sortAdded" : "lib.sortTitle")}
+            </button>
+          ))}
+        </div>
+        <div className="air-lib-actions">
+          <input
+            className="air-search"
+            placeholder={t("lib.searchPlaceholder")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button className="air-lib-import" onClick={() => void pickAndImport()}>
+            {t("lib.importBooks")}
+          </button>
+        </div>
+      </div>
+
       {busy && <div className="air-toast">{busy}</div>}
       {error && <div className="air-toast air-toast-error">{error}</div>}
 

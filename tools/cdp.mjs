@@ -83,8 +83,23 @@ const looksLikeExpression =
   withoutLeadingComments.startsWith("(async") || withoutLeadingComments.startsWith("(function");
 const wrapped = looksLikeExpression && !skipGuard ? GUARD_PREFIX + expr + GUARD_SUFFIX : expr;
 
-const res = await fetch("http://127.0.0.1:9222/json");
-const targets = await res.json();
+// WebView2（桌面版）只认 Host: localhost —— 用 127.0.0.1 请求时它直接关掉 socket
+//（实测：fetch failed / other side closed）。手机那套走 adb forward，两个都认。
+// 所以先试 localhost，再退回 127.0.0.1。
+async function loadTargets() {
+  const urls = ["http://localhost:9222/json", "http://127.0.0.1:9222/json"];
+  let lastErr = null;
+  for (const url of urls) {
+    try {
+      const r = await fetch(url);
+      return await r.json();
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr ?? new Error("连不上 CDP（9222）");
+}
+const targets = await loadTargets();
 const page = targets.find((t) => t.type === "page") ?? targets[0];
 if (!page) {
   console.log(JSON.stringify({ error: "no page target" }, null, 2));

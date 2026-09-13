@@ -1,0 +1,616 @@
+/* ============================================================================
+ * 手机端视觉规范（P6）——按参考设计重做，只作用于 [data-mobile="true"]
+ *
+ * 参考里量出来的东西（不是"感觉像"）：
+ *   页面底色 #FDFDFD（近纯白）；次级底 #F2F2F2/#F4F4F4；主文字近黑 #171717~#1C1C1E；
+ *   次要文字 #828282/#8A8A8E；分隔线极细且低对比 #ECECEC；
+ *   UI 上的暖橙强调色 #EB712D（封面本身是彩色，不算强调色）；
+ *   大标题墨高 73px@3x ≈ 34pt Bold；分区标题 48px ≈ 22pt Semibold；
+ *   米黄纸张 #F7F1E4、深色 #0E0E0E（另一张参考的阅读页）。
+ *
+ * 三条纪律：
+ *   1. **只改手机**：全部规则挂在 .air-app[data-mobile="true"] 下，桌面一个像素不动；
+ *   2. **不硬编码主题色**：颜色按 html[data-air-theme] 分三套给（浅色/米黄/深色），
+ *      否则用户在设置里切主题时手机壳会一直白着；
+ *   3. **只覆盖视觉，不改布局机制**：flex/定位/交互（抽屉靠 transform 收起、点击翻页的
+ *      命中区）都保持原样，改的是间距、圆角、字阶、颜色、阴影。
+ * ========================================================================== */
+
+/* ---------- 1. 设计 token ---------- */
+
+.air-app[data-mobile="true"] {
+  /* 字阶（参考里的层级：大标题 >> 分区标题 > 正文 > 次要） */
+  --m-t-hero: 30px;
+  --m-t-section: 20px;
+  --m-t-nav: 16px;
+  --m-t-body: 15.5px;
+  --m-t-sub: 13.5px;
+  --m-t-cap: 12px;
+  --m-w-hero: 700;
+  --m-w-section: 650;
+  --m-w-nav: 600;
+
+  /* 间距与圆角 */
+  --m-pad: 18px;
+  --m-gap: 14px;
+  --m-r-cover: 6px;
+  --m-r-card: 12px;
+  --m-r-field: 10px;
+  --m-r-sheet: 18px;
+
+  /* 阴影：参考里的卡片几乎没有描边，靠极淡的投影浮起来 */
+  --m-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 16px rgba(0, 0, 0, 0.06);
+  --m-shadow-sheet: 0 -8px 30px rgba(0, 0, 0, 0.16);
+  --m-shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.16);
+
+  font-size: var(--m-t-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 浅色（参考主画面）：白底 + 近黑字 + 暖橙强调 */
+html[data-mobile="true"][data-air-theme="light"] {
+  --m-bg: #ffffff;
+  --m-grouped: #f2f2f7;
+  --m-panel: #ffffff;
+  --m-text: #1c1c1e;
+  --m-sub: #8a8a8e;
+  --m-line: rgba(60, 60, 67, 0.14);
+  --m-tint: #eb712d;
+  --m-tint-soft: rgba(235, 113, 45, 0.12);
+  --m-cover-from: #2b3240;
+  --m-cover-to: #4a5568;
+}
+
+/* 米黄（参考里的阅读页纸张 #F7F1E4） */
+html[data-mobile="true"][data-air-theme="sepia"] {
+  --m-bg: #f7f1e4;
+  --m-grouped: #efe8d8;
+  --m-panel: #fbf6ea;
+  --m-text: #3b3226;
+  --m-sub: #8a7c66;
+  --m-line: rgba(90, 74, 51, 0.16);
+  --m-tint: #b8791f;
+  --m-tint-soft: rgba(184, 121, 31, 0.14);
+  --m-cover-from: #5a4a33;
+  --m-cover-to: #7d6a4c;
+}
+
+/* 深色（参考里的暗色屏 #0E0E0E） */
+html[data-mobile="true"][data-air-theme="dark"] {
+  --m-bg: #0e0e0e;
+  --m-grouped: #1c1c1e;
+  --m-panel: #161618;
+  --m-text: #f2f2f5;
+  --m-sub: #9a9aa0;
+  --m-line: rgba(255, 255, 255, 0.14);
+  --m-tint: #ff8a4c;
+  --m-tint-soft: rgba(255, 138, 76, 0.16);
+  --m-cover-from: #232830;
+  --m-cover-to: #39414d;
+  /* 深色下卡片不能靠白光，把它压成"比底色亮一点" */
+  --m-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* body 的底色也在手机端跟着走 —— 否则列表/抽屉滚到边界回弹时露出桌面的灰底 */
+html[data-mobile="true"] body {
+  background: var(--m-bg);
+}
+
+/* 注意：这一段必须挂在 .air-app 上，不能挂 html —— applyAppTheme 是往 documentElement
+ * 写**内联**变量，同元素上的 CSS 规则压不过内联；挂在 .air-app 上才能为它的子树改写 */
+/* 把新 token 映射回产品原有的 --air-*，这样**所有既有组件**（设置面板、插件界面、
+ * 各种列表）自动跟着换肤，不用一条条重写选择器 */
+.air-app[data-mobile="true"] {
+  --air-bg: var(--m-bg);
+  --air-panel: var(--m-panel);
+  --air-text: var(--m-text);
+  --air-sub: var(--m-sub);
+  --air-border: var(--m-line);
+  --air-hover: var(--m-grouped);
+  --air-cover-from: var(--m-cover-from);
+  --air-cover-to: var(--m-cover-to);
+  color: var(--m-text);
+  background: var(--m-bg);
+}
+
+/* ---------- 2. 通用控件：去掉描边，改成 iOS 那种"填充块 / 药丸" ---------- */
+
+.air-app[data-mobile="true"] button,
+.air-app[data-mobile="true"] select,
+.air-app[data-mobile="true"] input,
+.air-app[data-mobile="true"] textarea {
+  font-family: inherit;
+  font-size: var(--m-t-body);
+}
+
+.air-app[data-mobile="true"] .air-bar button,
+.air-app[data-mobile="true"] .air-side button,
+.air-app[data-mobile="true"] .air-lib-head button,
+.air-app[data-mobile="true"] .air-empty button {
+  border: 0;
+  background: var(--m-grouped);
+  color: var(--m-text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  min-height: 40px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: transform 0.08s ease, opacity 0.12s ease;
+}
+
+.air-app[data-mobile="true"] .air-bar button:active,
+.air-app[data-mobile="true"] .air-lib-head button:active,
+.air-app[data-mobile="true"] .air-side button:active {
+  transform: scale(0.97);
+}
+
+/* 选中态统一用强调色（主题按钮、排序芯片、开关…），排除卡片上的角标按钮 */
+.air-app[data-mobile="true"] button[data-active="true"]:not(.air-card-tag):not(.air-card-del) {
+  background: var(--m-tint-soft);
+  color: var(--m-tint);
+}
+
+/* 原生表单控件（滑块 / 勾选 / 单选 / 进度）在 Chromium 里默认是蓝色 —— 跟强调色对不上。
+   accent-color 一行把它们全部拉到暖橙（实测：抽屉里的字号/行距滑块原来是 #0075FF） */
+.air-app[data-mobile="true"] input[type="range"],
+.air-app[data-mobile="true"] input[type="checkbox"],
+.air-app[data-mobile="true"] input[type="radio"],
+.air-app[data-mobile="true"] progress {
+  accent-color: var(--m-tint);
+}
+
+.air-app[data-mobile="true"] input[type="range"] {
+  background: transparent;
+  min-height: 32px;
+}
+
+/* 主行动（导入 / 主要确认）用强调色 */
+.air-app[data-mobile="true"] button[data-primary="true"],
+.air-app[data-mobile="true"] .air-lib-head .air-lib-import {
+  background: var(--m-tint);
+  color: #fff;
+}
+
+.air-app[data-mobile="true"] .air-bar button[data-active="true"] {
+  background: var(--m-tint-soft);
+  color: var(--m-tint);
+}
+
+.air-app[data-mobile="true"] input,
+.air-app[data-mobile="true"] select,
+.air-app[data-mobile="true"] textarea {
+  background: var(--m-grouped);
+  border: 0;
+  border-radius: var(--m-r-field);
+  padding: 10px 12px;
+  color: var(--m-text);
+  min-height: 40px;
+  outline: none;
+}
+
+.air-app[data-mobile="true"] input::placeholder,
+.air-app[data-mobile="true"] textarea::placeholder {
+  color: var(--m-sub);
+}
+
+.air-app[data-mobile="true"] input:focus,
+.air-app[data-mobile="true"] textarea:focus {
+  box-shadow: 0 0 0 3px var(--m-tint-soft);
+}
+
+/* ---------- 3. 顶栏（阅读页 / 书架共用） ---------- */
+
+/* 手机顶栏只留"这一屏真正需要的"：上一页/下一页交给点两侧与滑动（P5 已经接好），
+ * 留着它们会把 390px 的顶栏挤成两行（实测 79px 高）——参考里的导航是干净的一行 */
+.air-app[data-mobile="true"] .air-bar .air-nav-prev,
+.air-app[data-mobile="true"] .air-bar .air-nav-next {
+  display: none;
+}
+
+/* 抽屉里的文字用手机的字号基准（.air-side 基础样式写死了 13px） */
+.air-app[data-mobile="true"] .air-side {
+  font-size: var(--m-t-body);
+}
+
+.air-app[data-mobile="true"] .air-bar {
+  padding: calc(6px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 6px
+    calc(12px + env(safe-area-inset-left));
+  gap: 6px;
+  background: color-mix(in srgb, var(--m-panel) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid var(--m-line);
+  font-size: var(--m-t-nav);
+  min-height: 48px;
+}
+
+/* 手机顶栏按钮做成方形图标位：不带边框、不带文字背景 */
+.air-app[data-mobile="true"] .air-bar button {
+  background: transparent;
+  color: var(--m-tint);
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 6px 10px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.air-app[data-mobile="true"] .air-bar button:active {
+  background: var(--m-grouped);
+}
+
+/* 书名**屏幕居中**、单行省略：参考里的导航标题就是这个规格。
+   绝对定位居中（而不是靠 flex 分空间）—— 否则左右按钮数量一变，标题就跟着偏 */
+.air-app[data-mobile="true"] .air-bar {
+  position: relative;
+}
+
+.air-app[data-mobile="true"] .air-bar-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 52%;
+  min-width: 0;
+  text-align: center;
+  color: var(--m-text);
+  font-size: var(--m-t-nav);
+  font-weight: var(--m-w-nav);
+  letter-spacing: -0.2px;
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 百分比推到最右，缩成小号灰字（大小与层级都不该抢书名） */
+.air-app[data-mobile="true"] .air-bar-pct {
+  margin-left: auto;
+  min-width: 0;
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  color: var(--m-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 百分比：小、灰、等宽数字，不要抢书名 */
+.air-app[data-mobile="true"] .air-bar .air-stat-text {
+  display: none;
+}
+
+/* 阅读进度：顶栏下沿一条 2px 强调色细线（参考里的进度条是这种"存在感很低"的做法） */
+.air-reader-progress {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-reader-progress {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: transparent;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.air-app[data-mobile="true"] .air-reader-progress > i {
+  display: block;
+  height: 100%;
+  background: var(--m-tint);
+  transform-origin: left center;
+  transition: transform 0.18s ease;
+}
+
+/* ---------- 4. 书架页：大标题 + 分段控件 + 搜索 + 封面网格 ---------- */
+
+.air-lib-head {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-library > .air-bar {
+  /* 手机版把这些控件搬进 .air-lib-head（同一份 state，只是换控件样式） */
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-lib-head {
+  display: block;
+  padding: calc(4px + env(safe-area-inset-top)) var(--m-pad) 2px;
+  background: var(--m-bg);
+}
+
+.air-app[data-mobile="true"] .air-lib-headrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.air-app[data-mobile="true"] .air-lib-title {
+  margin: 0;
+  font-size: var(--m-t-hero);
+  font-weight: var(--m-w-hero);
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-lib-count {
+  font-size: var(--m-t-sub);
+  color: var(--m-sub);
+  flex: none;
+}
+
+.air-app[data-mobile="true"] .air-lib-actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 10px;
+}
+
+.air-app[data-mobile="true"] .air-lib-actions input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 分段控件（排序）：iOS 那种浅底药丸 + 白色滑块 */
+.air-app[data-mobile="true"] .air-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--m-grouped);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.air-app[data-mobile="true"] .air-segmented button {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  color: var(--m-text);
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  min-height: 32px;
+  padding: 6px 4px;
+  border-radius: 8px;
+}
+
+.air-app[data-mobile="true"] .air-segmented button[data-active="true"] {
+  background: var(--m-panel);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* 网格：手机上三列（参考是三列封面墙），封面圆角小、投影淡 */
+.air-app[data-mobile="true"] .air-grid {
+  grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
+  gap: var(--m-gap) 12px;
+  padding: var(--m-pad);
+  padding-top: 4px;
+}
+
+.air-app[data-mobile="true"] .air-card {
+  padding: 0;
+  border-radius: var(--m-r-card);
+  background: transparent;
+}
+
+.air-app[data-mobile="true"] .air-card:active .air-cover {
+  transform: scale(0.98);
+}
+
+.air-app[data-mobile="true"] .air-card:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+.air-app[data-mobile="true"] .air-cover {
+  border-radius: var(--m-r-cover);
+  box-shadow: var(--m-shadow-card);
+  transition: transform 0.12s ease;
+}
+
+.air-app[data-mobile="true"] .air-card-title {
+  margin-top: 8px;
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.1px;
+}
+
+.air-app[data-mobile="true"] .air-card-sub {
+  font-size: var(--m-t-cap);
+  color: var(--m-sub);
+  margin-top: 2px;
+}
+
+/* 卡片角标：参考里的角标是小圆角浅底，不是黑色块 */
+.air-app[data-mobile="true"] .air-badge {
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(6px);
+  border-radius: 5px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 2px 5px;
+  top: 5px;
+  right: 5px;
+}
+
+.air-app[data-mobile="true"] .air-card-tag,
+.air-app[data-mobile="true"] .air-card-del {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 3px 7px;
+  top: 5px;
+  font-size: 11px;
+}
+
+.air-app[data-mobile="true"] .air-card-tag {
+  right: 5px;
+}
+
+.air-app[data-mobile="true"] .air-card-del {
+  left: 5px;
+}
+
+/* ---------- 5. 空状态 / 提示 ---------- */
+
+.air-app[data-mobile="true"] .air-empty {
+  padding: 56px var(--m-pad);
+  gap: 10px;
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-empty > div:first-child {
+  font-size: var(--m-t-section) !important;
+  font-weight: var(--m-w-section);
+  letter-spacing: -0.3px;
+}
+
+.air-app[data-mobile="true"] .air-empty > div:last-child {
+  font-size: var(--m-t-sub) !important;
+  color: var(--m-sub) !important;
+  line-height: 1.6;
+}
+
+.air-app[data-mobile="true"] .air-toast {
+  border-radius: var(--m-r-card);
+  box-shadow: var(--m-shadow-pop);
+  font-size: var(--m-t-sub);
+  padding: 12px 14px;
+}
+
+/* ---------- 6. 底部抽屉：更大的圆角 + 抓手 + 发丝分隔 ---------- */
+
+.air-app[data-mobile="true"] .air-side {
+  border-top: 0;
+  border-radius: var(--m-r-sheet) var(--m-r-sheet) 0 0;
+  box-shadow: var(--m-shadow-sheet);
+  background: var(--m-panel);
+  padding: 4px 12px calc(8px + env(safe-area-inset-bottom));
+}
+
+/* 抓手：抽屉顶部那根小灰条（有它才像"可以拉上去的纸"） */
+.air-app[data-mobile="true"] .air-side::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--m-line);
+  margin: 6px auto 4px;
+  flex: 0 0 auto;
+}
+
+.air-app[data-mobile="true"] .air-tabs {
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 0 0 4px;
+  border-bottom: 1px solid var(--m-line);
+}
+
+.air-app[data-mobile="true"] .air-tabs button {
+  min-height: 42px;
+  padding: 6px 10px;
+  font-size: var(--m-t-body);
+  font-weight: 600;
+  color: var(--m-sub);
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+}
+
+/* 选中的页签：文字变强调色 + 2px 下划线（参考里的标签就是这个处理） */
+.air-app[data-mobile="true"] .air-tabs button[data-active="true"] {
+  color: var(--m-tint);
+  border-bottom-color: var(--m-tint);
+  background: transparent;
+}
+
+.air-app[data-mobile="true"] .air-tabs .air-sheet-close {
+  color: var(--m-sub);
+  min-width: 44px;
+}
+
+.air-app[data-mobile="true"] .air-side h3 {
+  font-size: var(--m-t-sub);
+  color: var(--m-sub);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 12px 0 6px;
+}
+
+/* 列表行：更高的行距 + 发丝分隔（iOS 分组列表的呼吸感） */
+.air-app[data-mobile="true"] .air-toc-item,
+.air-app[data-mobile="true"] .air-toc-tree button {
+  min-height: 44px;
+  padding: 10px 10px;
+  border-radius: 8px;
+  font-size: var(--m-t-body);
+}
+
+.air-app[data-mobile="true"] .air-toc-item {
+  border-bottom: 1px solid var(--m-line);
+}
+
+.air-app[data-mobile="true"] .air-toc-item[data-active="true"],
+.air-app[data-mobile="true"] .air-toc-item.air-active {
+  background: var(--m-tint-soft);
+  color: var(--m-tint);
+}
+
+/* 分组标题（书组 / 笔记分组）也拉开发丝线，别用虚线 */
+.air-app[data-mobile="true"] .air-note-bookhead {
+  border-bottom: 1px solid var(--m-line);
+  padding-bottom: 6px;
+  font-size: var(--m-t-sub);
+  color: var(--m-sub);
+}
+
+/* 芯片（书组筛选等） */
+.air-app[data-mobile="true"] .air-chip {
+  border: 0;
+  background: var(--m-tint-soft);
+  color: var(--m-tint);
+  font-weight: 600;
+  padding: 6px 12px;
+  min-height: 34px;
+}
+
+/* 弹层（归类气泡 / 下拉） */
+.air-app[data-mobile="true"] .air-tag-pop {
+  border: 0;
+  border-radius: var(--m-r-card);
+  box-shadow: var(--m-shadow-pop);
+  padding: 12px;
+  font-size: var(--m-t-sub);
+  width: 220px;
+}
+
+/* ---------- 7. 阅读页：正文两边留出参考那样的呼吸感 ---------- */
+
+.air-app[data-mobile="true"] .air-reader {
+  background: var(--m-bg);
+}
+
+/* 顶栏那条进度线要有定位父级 */
+.air-app[data-mobile="true"] .air-reader-col {
+  position: relative;
+}
+
+/* ---------- 8. 设置面板里的分区标题与说明文字 ---------- */
+
+.air-app[data-mobile="true"] .air-side-body > div {
+  line-height: 1.6;
+}
+
+.air-app[data-mobile="true"] .air-plugin-name {
+  font-size: var(--m-t-body);
+  font-weight: 600;
+}
+
+.air-app[data-mobile="true"] .air-plugin-row {
+  border-bottom: 1px solid var(--m-line);
+  padding: 10px 2px;
+}

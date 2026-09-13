@@ -202,6 +202,14 @@ export default function App() {
    * 桌面预览：localStorage["aireader.mobilePreview"] = "1" 或 URL 加 ?mobile=1。
    */
   const mobile = useMobile();
+  /**
+   * P6：把"手机版"这个事实也写到 <html> 上。
+   * 手机端那套配色 token 要挂在 html 上才能盖住 body 的底色（否则滚动回弹时露出桌面的灰底），
+   * 而 token 又不能挂在 .air-app 上由 body 继承（body 是祖先）。
+   */
+  useEffect(() => {
+    document.documentElement.dataset.mobile = mobile ? "true" : "false";
+  }, [mobile]);
   const [sheetOpen, setSheetOpen] = useState(false);
   /**
    * P4：**Android 的返回键/返回手势**在 WebView 里就是 `history.back()`。
@@ -1537,7 +1545,7 @@ export default function App() {
         )}
         {bookName && (
           <>
-            <button onClick={() => void handleRef.current?.prev()}>
+            <button className="air-nav-prev" onClick={() => void handleRef.current?.prev()}>
               <span className="air-only-desktop">{t("app.prevPage")}</span>
               <span className="air-only-mobile">‹</span>
             </button>
@@ -1545,11 +1553,13 @@ export default function App() {
               <span className="air-only-desktop">{t("app.addBookmark")}</span>
               <span className="air-only-mobile">{t("app.bookmarkShort")}</span>
             </button>
-            <button onClick={() => void handleRef.current?.next()}>
+            <button className="air-nav-next" onClick={() => void handleRef.current?.next()}>
               <span className="air-only-desktop">{t("app.nextPage")}</span>
               <span className="air-only-mobile">›</span>
             </button>
-            <span style={{ minWidth: 46, textAlign: "right" }}>{(fraction * 100).toFixed(1)}%</span>
+            <span className="air-bar-pct" style={{ minWidth: 46, textAlign: "right" }}>
+              {(fraction * 100).toFixed(1)}%
+            </span>
             {/* 手机上位位置文本交给底部状态条（插件席位）显示，顶栏省下这一截宽度 */}
             <span className="air-only-desktop" style={{ color: "#7b8494" }}>{location}</span>
           </>
@@ -1578,6 +1588,10 @@ export default function App() {
       <div className="air-main">
         {/* 阅读列：一直挂着（只切 display），否则回到阅读页时引擎实例已丢 */}
         <div className="air-reader-col" style={{ display: route === "reader" ? "flex" : "none" }}>
+        {/* P6 手机端：顶栏下沿一条 2px 的进度线（参考里的进度是"存在感很低"的那种） */}
+        <div className="air-reader-progress">
+          <i style={{ transform: "scaleX(" + Math.max(0, Math.min(1, fraction)) + ")" }} />
+        </div>
         <div
           className={`air-reader${dragOver ? " dragover" : ""}`}
           onWheel={onWheel}

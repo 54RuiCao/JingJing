@@ -23,13 +23,22 @@ const stepFile = fileAt >= 0 ? args[fileAt + 1] : null;
 const waitMs = waitAt >= 0 ? Number(args[waitAt + 1]) : 900;
 
 /** 找一个带调试端口的页面（应用没开就说清楚，别卡住） */
+/** 手机视口模拟：--emulate 390x844（可选 --dpr 3）—— 桌面预览手机版时用它，出的图和真机比例一致 */
+const emuAt = args.indexOf("--emulate");
+const emu = emuAt >= 0 ? /^(\d+)x(\d+)$/.exec(args[emuAt + 1] ?? "") : null;
+const dprAt = args.indexOf("--dpr");
+const dpr = dprAt >= 0 ? Number(args[dprAt + 1]) || 1 : 1;
+let cdpUrl = "http://localhost:9222/json";
 let targets = null;
 const t0 = Date.now();
 while (!targets && Date.now() - t0 < 8000) {
   try {
-    const r = await fetch("http://127.0.0.1:9222/json", { signal: AbortSignal.timeout(400) });
+    // 桌面 WebView2 只认 Host: localhost（127.0.0.1 会被直接关连接）；手机那套走 adb forward 两个都认
+    const r = await fetch(cdpUrl, { signal: AbortSignal.timeout(400) });
     targets = await r.json();
   } catch {
+    // 退一步试 127.0.0.1（某些环境下 localhost 解析成 ::1）
+    cdpUrl = cdpUrl.includes("localhost") ? "http://127.0.0.1:9222/json" : cdpUrl;
     await new Promise((r) => setTimeout(r, 100));
   }
 }
@@ -61,6 +70,18 @@ await new Promise((r) => ws.addEventListener("open", r));
 await send("Page.enable");
 await send("Runtime.enable");
 
+// 视口**先**设好，再跑步骤脚本 —— 步骤里常要"按手机视口点某处/开某页"，
+// 顺序反了的话步骤是按桌面视口跑的（实测：截图里是桌面布局，白折腾一轮）
+if (emu) {
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: Number(emu[1]),
+    height: Number(emu[2]),
+    deviceScaleFactor: dpr,
+    mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 900));
+}
+
 if (stepFile) {
   if (!existsSync(stepFile)) {
     console.error("找不到步骤脚本：" + stepFile);
@@ -74,7 +95,6 @@ if (stepFile) {
   }
   console.log("步骤脚本返回：" + JSON.stringify(r.result?.value ?? null).slice(0, 300));
 }
-
 await new Promise((r) => setTimeout(r, waitMs));
 const shot = await send("Page.captureScreenshot", { format: "png" });
 mkdirSync(dirname(out), { recursive: true });

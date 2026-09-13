@@ -94,4 +94,10 @@ export function applyAppTheme(theme: ThemeTokens): void {
   r.setProperty("--air-cover-from", theme.book.coverFrom);
   r.setProperty("--air-cover-to", theme.book.coverTo);
   document.documentElement.style.colorScheme = theme.id === "dark" ? "dark" : "light";
+  /**
+   * 主题 id 也挂到 <html> 上（P6 手机端视觉规范用）：
+   * applyAppTheme 写的是 documentElement 的**内联**变量，CSS 规则压不过它，
+   * 所以手机端那套颜色改成"按主题分别给变量"，靠这个属性选中对应的那一套。
+   */
+  document.documentElement.dataset.airTheme = theme.id;
 }
