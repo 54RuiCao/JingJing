@@ -8,6 +8,7 @@ import {
   type TocItem,
 } from "./reader/FoliateView";
 import { buildBookCSS, defaultTypography, type TypographyOptions } from "./reader/bookStyles";
+import { AiIcon, HomeIcon, LibraryIcon, NoteIcon, SearchIcon, TocIcon } from "./ui/mobileIcons";
 import { collectReport, saveReport } from "./reader/p0Report";
 import { txtToEpubFile, type TxtImportStats } from "./reader/txtToEpub";
 import { LibraryPage } from "./library/LibraryPage";
@@ -202,6 +203,23 @@ export default function App() {
    * 桌面预览：localStorage["aireader.mobilePreview"] = "1" 或 URL 加 ?mobile=1。
    */
   const mobile = useMobile();
+  /**
+   * P7 手机端导航（照参考设计的 UI 逻辑）：
+   *   底栏三格 = 首页 / 书库 / AI（参考里第三格是书店，我们换成 AI），右边一个搜索圆钮。
+   *   阅读页的 chrome（顶栏 + 底栏）默认**隐藏**，点屏幕中间一次"和其它边界一起出现"，
+   *   4 秒后自动收起（参考阅读器就是这么处理的：正文优先，控件让路）。
+   */
+  const [mobileTab, setMobileTab] = useState<"home" | "library" | "ai">("home");
+  const [aiOpen, setAiOpen] = useState(false);
+  const [chromeOn, setChromeOn] = useState(false);
+  const [typoSheet, setTypoSheet] = useState(false);
+  /** 底栏那个搜索圆钮：切到书库并把焦点送进搜索框（参考里它是独立圆钮，不是一个页签） */
+  const [searchFocus, setSearchFocus] = useState(false);
+  const chromeTimer = useRef<number | null>(null);
+  const hideChrome = useCallback(() => {
+    if (chromeTimer.current) window.clearTimeout(chromeTimer.current);
+    setChromeOn(false);
+  }, []);
   /**
    * P6：把"手机版"这个事实也写到 <html> 上。
    * 手机端那套配色 token 要挂在 html 上才能盖住 body 的底色（否则滚动回弹时露出桌面的灰底），
@@ -1314,7 +1332,12 @@ export default function App() {
       activityRef.current.lastActiveAt = Date.now();
       if (zone === "prev") void handleRef.current?.prev();
       else if (zone === "next") void handleRef.current?.next();
-      else setSheetOpen((open) => !open);
+      // 中间一次点击：顶栏 + 底栏（含 AI 入口）一起出现/收起（P7，照参考阅读器的习惯）
+      else setChromeOn((on) => {
+        if (chromeTimer.current) window.clearTimeout(chromeTimer.current);
+        if (!on) chromeTimer.current = window.setTimeout(() => setChromeOn(false), 4000);
+        return !on;
+      });
     },
     [mobile, flow],
   );
@@ -1502,18 +1525,22 @@ export default function App() {
    * 「设置与插件」两边都要有 —— 管理插件、改主题不该逼用户先打开一本书。
    * sideTab 只存"用户点过的那个"，当前路由没有它就落到该路由的第一页（切回来时还在原页）。
    */
+  /**
+   * P7：手机端把 AI 从抽屉页签里**拿掉** —— 它现在是底栏的一格（参考里书店那一格），
+   * 阅读页里也在底栏上，抽屉只留"跟当前这本书/书库有关的列表"。
+   */
   const tabs: (readonly [SideTab, string])[] = isLibrary
     ? [
         ["notes", t("app.tabNotes", { n: noteCounts.all })],
         ["groups", t("app.tabGroups", { n: groups.length })],
-        ["ai", "AI"],
+        ...(mobile ? [] : ([["ai", "AI"]] as (readonly [SideTab, string])[])),
         ["typo", t("app.tabSettings")],
       ]
     : [
         ["toc", t("app.tabToc", { n: toc.length })],
         ["anno", t("app.tabAnno", { n: annotations.length })],
         ["search", t("app.tabSearch")],
-        ["ai", "AI"],
+        ...(mobile ? [] : ([["ai", "AI"]] as (readonly [SideTab, string])[])),
         ["typo", t("app.tabSettings")],
       ];
   const tab: SideTab = tabs.some(([id]) => id === sideTab) ? sideTab : tabs[0][0];
@@ -1524,10 +1551,44 @@ export default function App() {
   );
   const groupCounts = useMemo(() => countByGroup(groupLinks), [groupLinks]);
 
+  /**
+   * AI 面板的属性：桌面挂在侧栏、手机挂在主区（底栏「AI」那一格）。
+   * 抽成一份，是为了**同一个面板只描述一次** —— 两处各写一遍迟早会漏改一处。
+   */
+  const aiPanelProps = {
+    bookId: isLibrary ? null : currentBookId,
+    load: isLibrary ? NO_CONTEXT : ctxLoad,
+    registry: toolRegistry,
+    skills: skillHost,
+    ai: runtime.ai,
+    slots: runtime.slots,
+    onReload: isLibrary ? undefined : reloadBookContext,
+    onJumpToChapter: isLibrary
+      ? undefined
+      : (n: number) => {
+          // 优先用章节清单里的 href（含 #锚点）；没有清单（未装载）才回退到节号
+          const m = ctxLoad.data?.manifest.find((x) => x.n === n);
+          if (m?.href) void handleRef.current?.goTo(m.href);
+          else void handleRef.current?.goToSection(n - 1);
+        },
+    context: isLibrary
+      ? LIBRARY_CONTEXT
+      : {
+          title: bookName ? title : "",
+          author: currentAuthor,
+          chapter: currentChapter,
+          // 合订本必备：两卷同名章只有 n 能消歧（P5 实测"问第一本答第二本"的根因）
+          chapterN: ctxLoad.data?.manifest.find((m) => m.section === sectionRef.current.sectionIndex)?.n ?? undefined,
+          location,
+          toc: toc.map((x) => String(x.label ?? "")).filter(Boolean),
+        },
+  };
+
   return (
     <div className="air-app" data-mobile={mobile ? "true" : "false"}>
       <div className="air-reader-shell" style={{ display: "flex" }}>
-      {route === "reader" && (
+      {/* 手机端顶栏跟着 chrome 一起显隐（点屏幕中间一次出现）；桌面照旧常驻 */}
+      {route === "reader" && (!mobile || chromeOn) && (
       <div className="air-bar">
         <button onClick={() => setRoute("library")}>
           <span className="air-only-desktop">{t("app.backToLibrary")}</span>
@@ -1587,7 +1648,11 @@ export default function App() {
 
       <div className="air-main">
         {/* 阅读列：一直挂着（只切 display），否则回到阅读页时引擎实例已丢 */}
-        <div className="air-reader-col" style={{ display: route === "reader" ? "flex" : "none" }}>
+        <div
+          className="air-reader-col"
+          data-chrome={chromeOn ? "true" : "false"}
+          style={{ display: route === "reader" && !aiOpen ? "flex" : "none" }}
+        >
         {/* P6 手机端：顶栏下沿一条 2px 的进度线（参考里的进度是"存在感很低"的那种） */}
         <div className="air-reader-progress">
           <i style={{ transform: "scaleX(" + Math.max(0, Math.min(1, fraction)) + ")" }} />
@@ -1644,10 +1709,59 @@ export default function App() {
             className="air-reader-tail"
             onError={onSlotError}
           />
+
+          {/* ---------- P7 手机端阅读底栏（点屏幕中间一次，跟顶栏一起出现） ----------
+              参考阅读器的底栏只有页码与几个图标；用户的额外要求是**AI 也要在这一栏**。 */}
+          {mobile && bookName && (
+            <div className="air-reader-dock" data-on={chromeOn ? "true" : "false"}>
+              {/* 书名 + 位置：参考的阅读底栏就是"居中一行信息"（顶栏那格让给按钮） */}
+              <div className="air-reader-pageinfo">
+                {bookName ? title : ""}
+                {location ? (bookName ? " · " + location : location) : ""}
+              </div>
+              <div className="air-reader-actions">
+                <button
+                  className="air-dock-ai"
+                  onClick={() => {
+                    hideChrome();
+                    setAiOpen(true);
+                  }}
+                >
+                  <AiIcon />
+                  <span>{t("app.tabAi")}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    hideChrome();
+                    setSideTab("toc");
+                    setSheetOpen(true);
+                  }}
+                >
+                  <TocIcon />
+                  <span>{t("app.tabToc", { n: toc.length })}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    hideChrome();
+                    setSideTab("anno");
+                    setSheetOpen(true);
+                  }}
+                >
+                  <NoteIcon />
+                  <span>{t("app.tabAnno", { n: annotations.length })}</span>
+                </button>
+                <button onClick={() => setTypoSheet(true)}>
+                  <span className="air-dock-aa">Aa</span>
+                  <span>{t("app.tabSettings")}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 书库列（P3.7 待办 B）：与阅读列并列，各自切 display */}
-        <div className="air-lib-col" style={{ display: isLibrary ? "flex" : "none" }}>
+        {/* 手机端 AI 页占满主区时，书库列要让位（否则两列并排，书库被挤成几十像素宽） */}
+        <div className="air-lib-col" style={{ display: isLibrary && !(mobile && aiOpen) ? "flex" : "none" }}>
           {/*
             P3.7：书库页主区的插件席位（library.view.top）。
             没有它的时候，"让 AI 在主页加一块东西"是做不到的 —— 模型查插槽目录只会看到
@@ -1664,6 +1778,16 @@ export default function App() {
               onClearGroup={() => setSelectedGroupId(null)}
               onSetBookGroups={(bookId, groupIds) => void handleSetBookGroups(bookId, groupIds)}
               onCreateGroupFor={(name, bookId) => handleCreateGroup(name, bookId)}
+              // P7：底栏的搜索圆钮点过之后，把头部的搜索框聚焦（用完就复位）
+              autoFocusSearch={searchFocus}
+              onSearchFocused={() => setSearchFocus(false)}
+              // P7：首页 / 书库两套布局共用同一份数据（参考里 Home 与 Library 是两个页签）。
+              // 桌面**永远是书库版式** —— 首页是手机端底栏的一格，桌上没有这个概念。
+              view={mobile ? (mobileTab === "ai" ? "library" : mobileTab) : "library"}
+              onOpenSettings={() => {
+                setSideTab("typo");
+                setSheetOpen(true);
+              }}
             />
           ) : (
             <div className="air-empty">
@@ -1671,6 +1795,26 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* ---------- P7 手机端 AI 页（底栏第三格；参考里那一格是书店） ---------- */}
+        {mobile && (
+          <div className="air-ai-col" style={{ display: aiOpen ? "flex" : "none" }}>
+            <div className="air-page-head">
+              <h1 className="air-page-title">{t("app.tabAi")}</h1>
+              <button
+                className="air-page-close"
+                aria-label={t("app.closePanel")}
+                onClick={() => {
+                  setAiOpen(false);
+                  if (route === "library") setMobileTab("library");
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <ChatPanel {...aiPanelProps} />
+          </div>
+        )}
 
         {!mobile && (
         <div
@@ -1724,44 +1868,12 @@ export default function App() {
 
           {/* 侧栏内容区：固定高度、自己滚动（AI 那一页内部再分「消息区滚动 + 输入框常驻」） */}
           <div className="air-side-body">
-          <div className="air-side-page" style={{ display: tab === "ai" ? "flex" : "none" }}>
+          <div className="air-side-page" style={{ display: tab === "ai" && !mobile ? "flex" : "none" }}>
             /* P3.7 待办 B：书库页（route=library）用 bookId=null 的**通用对话** ——
                后端早就支持（ai_messages.book_id IS NULL、作用域 adhoc 只放只读工具），
                这里只是把它接到书库分支上。没有 foliate 实例，reader.* 工具会回结构化的
                NOT_AVAILABLE，那是设计内行为。 */
-            <ChatPanel
-              bookId={isLibrary ? null : currentBookId}
-              load={isLibrary ? NO_CONTEXT : ctxLoad}
-              registry={toolRegistry}
-              skills={skillHost}
-              ai={runtime.ai}
-              slots={runtime.slots}
-              onReload={isLibrary ? undefined : reloadBookContext}
-              onJumpToChapter={
-                isLibrary
-                  ? undefined
-                  : (n) => {
-                      // 优先用章节清单里的 href（含 #锚点）；没有清单（未装载）才回退到节号
-                      const m = ctxLoad.data?.manifest.find((x) => x.n === n);
-                      if (m?.href) void handleRef.current?.goTo(m.href);
-                      else void handleRef.current?.goToSection(n - 1);
-                    }
-              }
-              context={
-                isLibrary
-                  ? LIBRARY_CONTEXT
-                  : {
-                      title: bookName ? title : "",
-                      author: currentAuthor,
-                      chapter: currentChapter,
-                      // 合订本必备：两卷同名章只有 n 能消歧（P5 实测"问第一本答第二本"的根因）
-                      chapterN:
-                        ctxLoad.data?.manifest.find((m) => m.section === sectionRef.current.sectionIndex)?.n ?? undefined,
-                      location,
-                      toc: toc.map((t) => String(t.label ?? "")).filter(Boolean),
-                    }
-              }
-            />
+            <ChatPanel {...aiPanelProps} />
           </div>
 
           {tab === "notes" && (
@@ -1998,7 +2110,8 @@ export default function App() {
             </label>
           </div>
           <div style={{ marginBottom: 8 }}>
-            <label>{t("app.indentLabel", { n: typo.indent })}em&nbsp;
+            {/* 文案里已经带了 em，这里再补一个就成了"2emem"（真机截图里看到的） */}
+            <label>{t("app.indentLabel", { n: typo.indent })}&nbsp;
               <input type="range" min={0} max={3} step={0.5} value={typo.indent}
                 onChange={(e) => setTypo((t) => ({ ...t, indent: Number(e.target.value) }))} />
             </label>
@@ -2068,6 +2181,126 @@ export default function App() {
         </aside>
       </div>
       </div>
+
+      {/* ---------- P7 手机端底部导航（参考设计的浮动胶囊） ----------
+          三格：首页 / 书库 / AI（参考里第三格是书店，按用户要求换成 AI）+ 右侧搜索圆钮。 */}
+      {mobile && (
+        // 阅读页里不显示底栏（那一屏有自己的底栏 dock）；AI 页盖在阅读页上时仍要显示，
+        // 否则打开 AI 之后就没有"回到书库/首页"的路了
+        <nav className="air-tabbar" style={{ display: route === "reader" && !aiOpen ? "none" : "flex" }}>
+          <div className="air-tabbar-pill">
+            {(
+              [
+                ["home", t("app.tabHome"), <HomeIcon key="h" />],
+                ["library", t("app.tabLibrary"), <LibraryIcon key="l" />],
+                ["ai", t("app.tabAi"), <AiIcon key="a" />],
+              ] as const
+            ).map(([id, label, icon]) => (
+              <button
+                key={id}
+                className="air-tabbar-item"
+                data-active={mobileTab === id && !(id === "ai" && !aiOpen)}
+                onClick={() => {
+                  if (id === "ai") {
+                    setAiOpen(true);
+                    setMobileTab("ai");
+                    return;
+                  }
+                  setAiOpen(false);
+                  setMobileTab(id);
+                  setRoute("library");
+                }}
+              >
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            className="air-tabbar-fab"
+            aria-label={t("app.tabSearchShort")}
+            onClick={() => {
+              setAiOpen(false);
+              setMobileTab("library");
+              setRoute("library");
+              setSearchFocus(true);
+            }}
+          >
+            <SearchIcon />
+          </button>
+        </nav>
+      )}
+
+
+      {/* ---------- P7 手机端排版面板（照参考阅读器的 AA 弹层） ----------
+          参考里是：亮度条 / A− A+ / 字体 / 四色纸 / 两个开关。
+          我们这里换成真实存在的设置：字号 / 行距 / 首行缩进 / 主题纸色 / 分页-滚动。 */}
+      {mobile && typoSheet && (
+        <>
+          <div className="air-sheet-mask" onClick={() => setTypoSheet(false)} />
+          <div className="air-typo-sheet" role="dialog">
+            <div className="air-typo-grab" />
+            <div className="air-typo-row air-typo-size">
+              <button onClick={() => setTypo((v) => ({ ...v, fontSize: Math.max(12, v.fontSize - 1) }))}>A</button>
+              <div className="air-typo-readout">{t("app.fontSizeN", { n: typo.fontSize })}</div>
+              <button className="air-typo-big" onClick={() => setTypo((v) => ({ ...v, fontSize: Math.min(34, v.fontSize + 1) }))}>
+                A
+              </button>
+            </div>
+            <label className="air-typo-row">
+              <span>{t("app.lineHeightN", { n: typo.lineHeight.toFixed(2) })}</span>
+              <input
+                type="range"
+                min={1.2}
+                max={2.6}
+                step={0.05}
+                value={typo.lineHeight}
+                onChange={(e) => setTypo((v) => ({ ...v, lineHeight: Number(e.target.value) }))}
+              />
+            </label>
+            <label className="air-typo-row">
+              <span>{t("app.indentN", { n: typo.indent })}</span>
+              <input
+                type="range"
+                min={0}
+                max={3}
+                step={0.5}
+                value={typo.indent}
+                onChange={(e) => setTypo((v) => ({ ...v, indent: Number(e.target.value) }))}
+              />
+            </label>
+            <div className="air-typo-row air-typo-themes">
+              <span>{t("app.themeLabel")}</span>
+              <div className="air-typo-swatches">
+                {THEME_LIST.map((th) => (
+                  <button
+                    key={th.id}
+                    className="air-typo-swatch"
+                    data-active={themeId === th.id}
+                    title={t(th.nameKey)}
+                    style={{ background: th.book.bg, color: th.book.text }}
+                    onClick={() => setThemeId(th.id)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="air-typo-row air-typo-flow">
+              <span>{t("app.flowLabel")}</span>
+              <div className="air-segmented">
+                <button data-active={flow === "paginated"} onClick={() => setFlow("paginated")}>
+                  {t("app.flowPaginated")}
+                </button>
+                <button data-active={flow === "scrolled"} onClick={() => setFlow("scrolled")}>
+                  {t("app.flowScrolled")}
+                </button>
+              </div>
+            </div>
+            <button className="air-typo-done" onClick={() => setTypoSheet(false)}>
+              {t("app.done")}
+            </button>
+          </div>
+        </>
+      )}
 
       {error && (
         <div className="air-errorbar">

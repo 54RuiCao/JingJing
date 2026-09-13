@@ -1685,9 +1685,9 @@ foliate-view {
   box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
   padding: 6px 12px calc(8px + env(safe-area-inset-bottom));
   overflow: hidden;       /* 内部自己滚 */
-  /* 收起时只留标签行（46px）在屏幕底部 —— 还要再抬一个安全区，
-     否则那 46px 正好落在 Android 的手势条/导航键下面（用户反馈就是这个） */
-  transform: translateY(calc(100% - 54px - env(safe-area-inset-bottom)));
+  /* P7：手机端导航已经搬到浮动底栏（首页/书库/AI + 搜索），抽屉收起时**完全藏起来** ——
+     否则屏幕底部会出现两条 bar（旧抽屉页签 + 新底栏）互相压着。 */
+  transform: translateY(100%);
   transition: transform 0.18s ease;
   z-index: 30;
 }
@@ -1727,10 +1727,10 @@ foliate-view {
   -webkit-overflow-scrolling: touch;
 }
 
-/* 抽屉常驻的那 54px 不该盖住正文（真机安全区 44px 时实测 46 会压进手势区 8px） */
+/* P7：抽屉不再常驻底部（导航在浮动底栏里），正文也就不需要那 54px 的让位了 */
 [data-mobile="true"] .air-reader-col,
 [data-mobile="true"] .air-library {
-  padding-bottom: 54px;
+  padding-bottom: 0;
 }
 
 /* 手机顶栏只留"能点的"：TXT 导入统计与状态这类长文本挤掉按钮就没法用了 */

@@ -614,3 +614,685 @@ html[data-mobile="true"] body {
   border-bottom: 1px solid var(--m-line);
   padding: 10px 2px;
 }
+
+/* ============================================================================
+ * P7 手机端：底部导航 + 首页版式 + 阅读底栏 + 排版面板
+ *
+ * 这一批是照参考设计的**UI 逻辑**抄的（不只是配色）：
+ *   · Apple Books：浮动胶囊底栏（Home / Library / Book Store + 搜索圆钮）→ 我们把
+ *     Book Store 那格换成 AI；首页 = 继续阅读卡片 + 接下来横向书架 + 居中计数；
+ *     书库 = 大封面网格 + 角标 + 居中计数；
+ *   · 阅读界面（453）：顶部一排细线图标、底部居中页码 + 右侧"还剩 N 页"，
+ *     排版面板（AA）是贴着按钮弹出来的小面板；控件**默认隐藏**，点一次屏幕才出现。
+ * ========================================================================== */
+
+/* ---------- 1. 浮动胶囊底栏 ---------- */
+
+.air-tabbar {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-tabbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 40;
+  pointer-events: none; /* 只有胶囊与圆钮可点，缝里点得到正文 */
+}
+
+.air-app[data-mobile="true"] .air-tabbar-pill,
+.air-app[data-mobile="true"] .air-tabbar-fab {
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--m-panel) 86%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+}
+
+.air-app[data-mobile="true"] .air-tabbar-pill {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 46px;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--m-sub);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* 选中那一格：浅底圆角块（参考里就是"白底包住图标+文字"） */
+.air-app[data-mobile="true"] .air-tabbar-item[data-active="true"] {
+  background: var(--m-grouped);
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-tabbar-item svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* 搜索：独立圆钮（参考里它跟胶囊分开，右边悬着一个圆） */
+.air-app[data-mobile="true"] .air-tabbar-fab {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--m-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-fab svg {
+  width: 23px;
+  height: 23px;
+}
+
+/* 底栏会盖住列表最后一行：给内容留出它的高度 */
+.air-app[data-mobile="true"] .air-library,
+.air-app[data-mobile="true"] .air-ai-col {
+  padding-bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
+/* ---------- 2. 首页（继续阅读 + 接下来） ---------- */
+
+.air-home {
+  padding: 4px var(--m-pad) 0;
+}
+
+.air-app[data-mobile="true"] .air-home-section {
+  margin-bottom: 26px;
+}
+
+.air-app[data-mobile="true"] .air-home-sechead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--m-t-section);
+  font-weight: var(--m-w-section);
+  letter-spacing: -0.3px;
+  color: var(--m-text);
+  margin: 0 0 4px;
+}
+
+.air-app[data-mobile="true"] .air-home-chev {
+  color: var(--m-sub);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.air-app[data-mobile="true"] .air-home-sub {
+  font-size: var(--m-t-sub);
+  color: var(--m-sub);
+  margin-bottom: 12px;
+}
+
+/* 继续阅读：通栏深色卡片（参考里是封面主色，我们用深色 + 白字，保证任何封面上都清楚） */
+.air-app[data-mobile="true"] .air-continue {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #3a3a3c, #1c1c1e);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.air-app[data-mobile="true"] .air-continue-cover {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 78px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.air-app[data-mobile="true"] .air-continue-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.air-app[data-mobile="true"] .air-continue-cover .air-cover-fallback {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10px;
+  line-height: 1.3;
+  padding: 0 4px;
+  text-align: center;
+}
+
+.air-app[data-mobile="true"] .air-continue-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.air-app[data-mobile="true"] .air-continue-title {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.air-app[data-mobile="true"] .air-continue-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.air-app[data-mobile="true"] .air-continue-more {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 0 4px;
+}
+
+/* 接下来：横向书架（参考里大封面一排，右边露半张"还有更多"） */
+.air-app[data-mobile="true"] .air-shelf {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  margin: 0 calc(-1 * var(--m-pad));
+  padding-left: var(--m-pad);
+  padding-right: var(--m-pad);
+  scrollbar-width: none;
+}
+
+.air-app[data-mobile="true"] .air-shelf::-webkit-scrollbar {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-shelf-item {
+  flex: 0 0 auto;
+  width: 132px;
+  position: relative;
+}
+
+.air-app[data-mobile="true"] .air-shelf-item .air-cover {
+  width: 132px;
+  height: 186px;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.air-app[data-mobile="true"] .air-shelf-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--m-sub);
+  background: var(--m-grouped);
+}
+
+.air-app[data-mobile="true"] .air-shelf-title {
+  margin-top: 6px;
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  color: var(--m-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 居中计数（参考书库页底部那行 "2 books, 1 series"） */
+.air-app[data-mobile="true"] .air-home-foot,
+.air-app[data-mobile="true"] .air-lib-foot {
+  text-align: center;
+  color: var(--m-sub);
+  font-size: var(--m-t-sub);
+  padding: 6px 0 22px;
+}
+
+/* ---------- 3. 书库页：两列大封面（参考 Library 的密度） ---------- */
+
+.air-app[data-mobile="true"] .air-grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px 18px;
+  padding: 4px var(--m-pad) 0;
+}
+
+.air-app[data-mobile="true"] .air-card .air-cover {
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.air-app[data-mobile="true"] .air-card-title {
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+/* ---------- 4. AI 页（底栏第三格） ---------- */
+
+.air-ai-col {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-ai-col {
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--m-bg);
+}
+
+.air-app[data-mobile="true"] .air-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(8px + env(safe-area-inset-top)) var(--m-pad) 6px;
+}
+
+.air-app[data-mobile="true"] .air-page-title {
+  margin: 0;
+  font-size: var(--m-t-hero);
+  font-weight: var(--m-w-hero);
+  letter-spacing: -0.6px;
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-page-close {
+  border: 0;
+  background: var(--m-grouped);
+  color: var(--m-sub);
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 15px;
+}
+
+/* ---------- 5. 阅读底栏（点屏幕中间一次，跟顶栏一起出现） ---------- */
+
+.air-reader-dock {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-reader-dock {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  padding: 6px 10px calc(8px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--m-panel) 90%, transparent);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-top: 1px solid var(--m-line);
+  transform: translateY(110%);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.air-app[data-mobile="true"] .air-reader-dock[data-on="true"] {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 页码：参考里是"居中 44/1068 + 右侧还剩 78 页" */
+.air-app[data-mobile="true"] .air-reader-pageinfo {
+  text-align: center;
+  font-size: var(--m-t-cap);
+  color: var(--m-sub);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.air-app[data-mobile="true"] .air-reader-actions {
+  display: flex;
+  align-items: stretch;
+}
+
+.air-app[data-mobile="true"] .air-reader-actions button {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--m-sub);
+  font-size: 10.5px;
+  font-weight: 600;
+  min-height: 50px;
+  padding: 4px 0;
+  border-radius: 10px;
+}
+
+.air-app[data-mobile="true"] .air-reader-actions button svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* AI 那一格用强调色 —— 它是这一栏里的主行动 */
+.air-app[data-mobile="true"] .air-reader-actions .air-dock-ai {
+  color: var(--m-tint);
+}
+
+.air-app[data-mobile="true"] .air-dock-aa {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 22px;
+  letter-spacing: -0.5px;
+}
+
+/* 抽屉（目录/批注/笔记/书组/设置）要盖在浮动底栏之上，否则打开时被底栏压住 */
+.air-app[data-mobile="true"] .air-side {
+  z-index: 60;
+}
+
+/* ---------- 6. 排版面板（AA）：贴着底部的设置面板 ---------- */
+
+.air-typo-sheet {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-sheet-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 50;
+}
+
+.air-app[data-mobile="true"] .air-typo-sheet {
+  display: block;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 51;
+  background: var(--m-panel);
+  border-radius: var(--m-r-sheet) var(--m-r-sheet) 0 0;
+  box-shadow: var(--m-shadow-sheet);
+  padding: 6px var(--m-pad) calc(10px + env(safe-area-inset-bottom));
+  animation: air-typo-in 0.18s ease;
+}
+
+@keyframes air-typo-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.air-app[data-mobile="true"] .air-typo-grab {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--m-line);
+  margin: 4px auto 10px;
+}
+
+.air-app[data-mobile="true"] .air-typo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--m-line);
+  font-size: var(--m-t-body);
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-typo-row > span:first-child {
+  flex: 0 0 auto;
+  min-width: 96px;
+  color: var(--m-sub);
+  font-size: var(--m-t-sub);
+}
+
+.air-app[data-mobile="true"] .air-typo-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A− / A+：左小右大（参考里就是两个 A，一个大一个小） */
+.air-app[data-mobile="true"] .air-typo-size {
+  justify-content: space-between;
+}
+
+.air-app[data-mobile="true"] .air-typo-size button {
+  width: 62px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--m-grouped);
+  color: var(--m-text);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.air-app[data-mobile="true"] .air-typo-size button.air-typo-big {
+  font-size: 26px;
+}
+
+.air-app[data-mobile="true"] .air-typo-readout {
+  flex: 1 1 auto;
+  text-align: center;
+  color: var(--m-sub);
+  font-size: var(--m-t-sub);
+}
+
+/* 纸色：四个圆点（参考里的四色纸；我们有几套主题就显示几个） */
+.air-app[data-mobile="true"] .air-typo-swatches {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.air-app[data-mobile="true"] .air-typo-swatch {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--m-line);
+}
+
+.air-app[data-mobile="true"] .air-typo-swatch[data-active="true"] {
+  box-shadow: 0 0 0 2px var(--m-panel), 0 0 0 3.5px var(--m-tint);
+}
+
+.air-app[data-mobile="true"] .air-typo-flow .air-segmented {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.air-app[data-mobile="true"] .air-typo-done {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-tint);
+  color: #fff;
+  font-size: var(--m-t-body);
+  font-weight: 600;
+}
+
+
+/* 头部右上角的设置圆钮（参考：顶部右侧那排圆形按钮） */
+.air-app[data-mobile="true"] .air-lib-gear {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  margin-left: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-grouped);
+  color: var(--m-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.air-app[data-mobile="true"] .air-lib-gear svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* 头部那一行：标题在左、计数与圆钮在右 */
+.air-app[data-mobile="true"] .air-lib-headrow {
+  align-items: center;
+}
+
+
+/* 卡片下方那一行：格式胶囊（左）+ •••（右）—— 参考书库页的做法 */
+.air-app[data-mobile="true"] .air-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.air-app[data-mobile="true"] .air-card-pill {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--m-grouped);
+  color: var(--m-sub);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.air-app[data-mobile="true"] .air-card-more {
+  border: 0;
+  background: transparent;
+  color: var(--m-sub);
+  font-size: 13px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  min-height: 28px;
+  border-radius: 6px;
+}
+
+.air-app[data-mobile="true"] .air-card-more[data-active="true"] {
+  background: var(--m-grouped);
+  color: var(--m-text);
+}
+
+/* ••• 打开的小菜单：归类 / 移除 */
+.air-app[data-mobile="true"] .air-card-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  min-width: 148px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--m-panel);
+  box-shadow: var(--m-shadow-pop);
+  display: flex;
+  flex-direction: column;
+}
+
+.air-app[data-mobile="true"] .air-card-menu button {
+  border: 0;
+  background: transparent;
+  color: var(--m-text);
+  text-align: left;
+  font-size: var(--m-t-sub);
+  font-weight: 500;
+  padding: 10px 10px;
+  min-height: 40px;
+  border-radius: 8px;
+}
+
+.air-app[data-mobile="true"] .air-card-menu .air-card-menu-del {
+  color: #c0392b;
+}
+
+/* 手机上不再需要"常显的移除/归类按钮与封面角标"（操作已经收进 •••，格式改在封面下方） */
+.air-app[data-mobile="true"] .air-card-del,
+.air-app[data-mobile="true"] .air-card-tag,
+.air-app[data-mobile="true"] .air-badge {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-card {
+  position: relative;
+}
+
+
+/* 阅读页顶栏：手机上**不放书名**（参考的阅读顶栏就是纯图标排）——
+   居中标题会和左右按钮打架（实测"书签"被标题压住）。书名改到底栏那行信息里。 */
+.air-app[data-mobile="true"] .air-reader-shell .air-bar .air-bar-title {
+  display: none;
+}
+
+/* 插件贡献的阅读区尾部状态条：跟着 chrome 一起显隐，并且抬到底栏之上（否则被底栏压住） */
+.air-app[data-mobile="true"] .air-reader-col[data-chrome="false"] .air-reader-tail {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-reader-tail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(86px + env(safe-area-inset-bottom));
+  z-index: 5;
+  background: color-mix(in srgb, var(--m-panel) 92%, transparent);
+  border-top: 1px solid var(--m-line);
+}
+
+
+/* 卡片下方那一行（格式胶囊 + •••）**只在手机上有** —— 桌面保持原来的样子：
+   封面右上角 🏷、悬停出移除，不引入新的交互 */
+.air-card-meta {
+  display: none;
+}
+
+
+/* 导入按钮不许换行 —— 真机上它被搜索框挤成两行（"导入/书籍"） */
+.air-app[data-mobile="true"] .air-lib-import {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+

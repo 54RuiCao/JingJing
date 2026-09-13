@@ -72,6 +72,15 @@ await send("Runtime.enable");
 
 // 视口**先**设好，再跑步骤脚本 —— 步骤里常要"按手机视口点某处/开某页"，
 // 顺序反了的话步骤是按桌面视口跑的（实测：截图里是桌面布局，白折腾一轮）
+// --reset：撤掉之前留下的手机视口模拟（WebView2 会把 override 留着，
+// 不清掉的话下一次"桌面截图"其实还是 390 宽的手机布局 —— 实测踩到）
+if (args.includes("--reset")) {
+  await send("Emulation.clearDeviceMetricsOverride");
+  // WebView2 上光 clear 不够：页面还停在旧的视觉视口上，要再重载一次才回到真实窗口尺寸
+  await send("Page.reload");
+  await new Promise((r) => setTimeout(r, 3500));
+}
+
 if (emu) {
   await send("Emulation.setDeviceMetricsOverride", {
     width: Number(emu[1]),

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { importBookFromFile, importBookFromPath } from "./importBook";
 import { isMobile } from "../platform";
-import { listBooks, deleteBook, type Book } from "../store/db";
+import { listBooks, deleteBook, loadProgress, type Book } from "../store/db";
 import { filterBooks, groupsOfBook, type BookGroup, type BookGroupLink, type SortKey } from "./manage";
 import { useT } from "../i18n/react";
+import { GearIcon } from "../ui/mobileIcons";
 
 type Props = {
   onOpen: (book: Book) => void;
@@ -21,6 +22,18 @@ type Props = {
   onSetBookGroups?: (bookId: string, groupIds: string[]) => void;
   /** 在卡片上直接新建一个书组并把它加进去 */
   onCreateGroupFor?: (name: string, bookId: string) => Promise<void> | void;
+  /**
+   * P7 手机端：同一个书库数据、两套版式（照参考设计 Home / Library 两个页签的差别）
+   *   home    = 首页：继续阅读卡片 + 接下来（横向书架），没有排序控件
+   *   library = 书库：封面网格 + 计数
+   * 桌面不传 = 老样子。
+   */
+  view?: "home" | "library";
+  /** 底栏的搜索圆钮点过之后，把焦点送进搜索框 */
+  autoFocusSearch?: boolean;
+  onSearchFocused?: () => void;
+  /** 手机端头部右上角的设置圆钮（打开侧栏的「设置与插件」） */
+  onOpenSettings?: () => void;
 };
 
 const FORMAT_LABEL: Record<string, string> = {
@@ -43,6 +56,10 @@ export function LibraryPage({
   onClearGroup,
   onSetBookGroups,
   onCreateGroupFor,
+  view = "library",
+  autoFocusSearch = false,
+  onSearchFocused,
+  onOpenSettings,
 }: Props) {
   const t = useT();
   const [books, setBooks] = useState<Book[]>([]);
@@ -52,6 +69,8 @@ export function LibraryPage({
   const [sort, setSort] = useState<SortKey>("recent");
   /** 正在展开「归类」气泡的那本书 */
   const [tagging, setTagging] = useState<string | null>(null);
+  /** P7：正在展开「•••」菜单的那本书（参考里的 ••• 就在封面下方） */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState("");
 
   const refresh = useCallback(async () => {
@@ -72,6 +91,38 @@ export function LibraryPage({
     [books, query, groupId, links, sort],
   );
   const activeGroup = groupId ? groups.find((g) => g.id === groupId) ?? null : null;
+
+  /**
+   * P7 首页（参考 Home 页的 UI 逻辑）：
+   *   继续阅读 = 最近打开的那一本（listBooks 就是按 COALESCE(opened_at, added_at) 排的），
+   *   接下来 = 其余的书，横向书架。
+   * 进度只有"这一本"需要，所以单独查一次，不拖累列表。
+   */
+  const continueBook = books[0] ?? null;
+  const [continuePct, setContinuePct] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (!continueBook) {
+      setContinuePct(null);
+      return;
+    }
+    void loadProgress(continueBook.id)
+      .then((p) => {
+        if (alive) setContinuePct(p?.fraction ?? 0);
+      })
+      .catch(() => {
+        if (alive) setContinuePct(null);
+      });
+    return () => {
+      alive = false;
+    };
+    // continueBook 是每次 render 现取的对象，用 id 当依赖才不会被对象身份反复触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continueBook?.id, version]);
+  const upNext = useMemo(
+    () => shown.filter((b) => b.id !== continueBook?.id).slice(0, 12),
+    [shown, continueBook?.id],
+  );
 
   const importOne = useCallback(
     async (srcPath: string) => {
@@ -109,6 +160,13 @@ export function LibraryPage({
   );
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  /** P7：底栏搜索圆钮把焦点送进来 */
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (!autoFocusSearch) return;
+    searchRef.current?.focus();
+    onSearchFocused?.();
+  }, [autoFocusSearch, onSearchFocused]);
 
   const pickAndImport = useCallback(async () => {
     // P4：手机上不用 dialog 插件 —— Android 的文件选择器返回 content:// URI，
@@ -195,12 +253,24 @@ export function LibraryPage({
           桌面继续用上面那条 .air-bar（同一份 state，两套控件；CSS 按 data-mobile 二选一显示）。 */}
       <div className="air-lib-head">
         <div className="air-lib-headrow">
-          <h1 className="air-lib-title">{t("lib.shelfTitle")}</h1>
+          <h1 className="air-lib-title">{view === "home" ? t("app.tabHome") : t("app.tabLibrary")}</h1>
           <span className="air-lib-count">
             {activeGroup
               ? t("lib.shownCount", { shown: shown.length, total: books.length })
               : t("lib.totalCount", { n: books.length })}
           </span>
+          {/* P7：手机端导航搬进底栏后，抽屉收起时"设置与插件"没有别的入口 ——
+              照参考（顶部右侧那排圆形按钮）放一个圆钮在这里 */}
+          {onOpenSettings && (
+            <button
+              className="air-lib-gear"
+              title={t("app.tabSettings")}
+              aria-label={t("app.tabSettings")}
+              onClick={onOpenSettings}
+            >
+              <GearIcon />
+            </button>
+          )}
         </div>
         {activeGroup && (
           <button
@@ -214,15 +284,19 @@ export function LibraryPage({
             {t("lib.groupFilter", { name: activeGroup.name })}
           </button>
         )}
-        <div className="air-segmented" role="tablist">
-          {(["recent", "added", "title"] as const).map((k) => (
-            <button key={k} data-active={sort === k} onClick={() => setSort(k)}>
-              {t(k === "recent" ? "lib.sortRecent" : k === "added" ? "lib.sortAdded" : "lib.sortTitle")}
-            </button>
-          ))}
-        </div>
+        {/* 首页不摆排序（参考的 Home 也没有）；书库页才给分段控件 */}
+        {view === "library" && (
+          <div className="air-segmented" role="tablist">
+            {(["recent", "added", "title"] as const).map((k) => (
+              <button key={k} data-active={sort === k} onClick={() => setSort(k)}>
+                {t(k === "recent" ? "lib.sortRecent" : k === "added" ? "lib.sortAdded" : "lib.sortTitle")}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="air-lib-actions">
           <input
+            ref={searchRef}
             className="air-search"
             placeholder={t("lib.searchPlaceholder")}
             value={query}
@@ -244,6 +318,66 @@ export function LibraryPage({
             {t("lib.emptyHint")}
           </div>
         </div>
+      ) : view === "home" ? (
+        /* ---------- P7 首页（照参考 Home 页的 UI 逻辑）----------
+           继续阅读：一张通栏深色卡片（左侧小封面 + 书名/作者/进度 + 右侧 •••）
+           接下来：横向书架，封面大、下面一行书名
+           底部居中一行"共 N 本"（参考里的 "2 books, 1 series"） */
+        <div className="air-home">
+          {continueBook && (
+            <div className="air-home-section">
+              <div className="air-home-sechead">{t("lib.continueReading")}</div>
+              <div className="air-continue" onClick={() => onOpen(continueBook)} role="button">
+                <div className="air-continue-cover">
+                  {continueBook.cover_path ? (
+                    <img src={continueBook.cover_path} alt="" />
+                  ) : (
+                    <span className="air-cover-fallback">{continueBook.title.slice(0, 6)}</span>
+                  )}
+                </div>
+                <div className="air-continue-meta">
+                  <div className="air-continue-title">{continueBook.title || t("lib.untitled")}</div>
+                  <div className="air-continue-sub">{continueBook.author || t("lib.unknownAuthor")}</div>
+                  <div className="air-continue-sub">
+                    {t("lib.readingKind")} · {Math.round((continuePct ?? 0) * 100)}%
+                  </div>
+                </div>
+                <span className="air-continue-more" aria-hidden>
+                  •••
+                </span>
+              </div>
+            </div>
+          )}
+
+          {upNext.length > 0 && (
+            <div className="air-home-section">
+              <div className="air-home-sechead">
+                {t("lib.upNext")}
+                <span className="air-home-chev" aria-hidden>
+                  ›
+                </span>
+              </div>
+              <div className="air-home-sub">{t("lib.upNextHint")}</div>
+              <div className="air-shelf">
+                {upNext.map((b) => (
+                  <div key={b.id} className="air-shelf-item" onClick={() => onOpen(b)} title={b.original_name}>
+                    <div className="air-cover">
+                      {b.cover_path ? (
+                        <img src={b.cover_path} alt="" />
+                      ) : (
+                        <span className="air-cover-fallback">{b.title.slice(0, 8)}</span>
+                      )}
+                    </div>
+                    <span className="air-shelf-badge">{(FORMAT_LABEL[b.format] ?? b.format).toUpperCase()}</span>
+                    <div className="air-shelf-title">{b.title || t("lib.untitled")}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="air-home-foot">{t("lib.totalCount", { n: books.length })}</div>
+        </div>
       ) : (
         <div className="air-grid">
           {shown.map((b) => (
@@ -256,12 +390,13 @@ export function LibraryPage({
                 )}
                 <span className="air-badge">{(FORMAT_LABEL[b.format] ?? b.format).toUpperCase()}</span>
               </div>
-              <div className="air-card-title">{b.title || t("lib.untitled")}</div>
-              <div className="air-card-sub">
-                {b.author || t("lib.unknownAuthor")}
-                {b.chapters ? t("lib.chapterCount", { n: b.chapters }) : ""}
-              </div>
-              {/* P3.9：归类。书组在侧栏「书组」页里管理，这里只做"这本书属于哪些组" */}
+              {/*
+                P7（照参考书库页的 UI 逻辑）：封面上**不再压操作按钮** ——
+                参考里是"封面 → 下面一行：左边一个格式小胶囊、右边一个 •••"，
+                归类/移除都收进 ••• 里。这样封面本身是干净的主视觉。
+              */}
+              {/* 桌面：还是老样子（封面右上角的 🏷 归类按钮，悬停显形）；手机上它被 CSS 隐藏，
+                  改用下面那一行"格式胶囊 + •••"（参考书库页的做法） */}
               <button
                 className="air-card-tag"
                 title={t("lib.tagToGroup")}
@@ -274,6 +409,51 @@ export function LibraryPage({
               >
                 🏷{groupsOfBook(links, b.id).length || ""}
               </button>
+              <div className="air-card-meta">
+                <span className="air-card-pill">{(FORMAT_LABEL[b.format] ?? b.format).toUpperCase()}</span>
+                <button
+                  className="air-card-more"
+                  title={t("lib.moreActions")}
+                  aria-label={t("lib.moreActions")}
+                  data-active={menuFor === b.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNewGroup("");
+                    setTagging(null);
+                    setMenuFor((cur) => (cur === b.id ? null : b.id));
+                  }}
+                >
+                  •••
+                </button>
+              </div>
+              {menuFor === b.id && (
+                <div className="air-card-menu" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => {
+                      setMenuFor(null);
+                      setNewGroup("");
+                      setTagging(b.id);
+                    }}
+                  >
+                    {t("lib.tagToGroup")}
+                    {groupsOfBook(links, b.id).length ? " · " + groupsOfBook(links, b.id).length : ""}
+                  </button>
+                  <button
+                    className="air-card-menu-del"
+                    onClick={() => {
+                      setMenuFor(null);
+                      void remove(b);
+                    }}
+                  >
+                    {t("lib.remove")}
+                  </button>
+                </div>
+              )}
+              <div className="air-card-title">{b.title || t("lib.untitled")}</div>
+              <div className="air-card-sub">
+                {b.author || t("lib.unknownAuthor")}
+                {b.chapters ? t("lib.chapterCount", { n: b.chapters }) : ""}
+              </div>
               {tagging === b.id && (
                 <div className="air-tag-pop" onClick={(e) => e.stopPropagation()}>
                   <div className="air-tag-head">{t("lib.putIntoGroup")}</div>
