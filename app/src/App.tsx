@@ -1749,41 +1749,51 @@ export default function App() {
             </div>
           )}
         </div>
-          {/* P3.2：阅读区尾部（插件席位）。没有插件占位时整条不存在，不占地方 */}
-          <SlotView
-            slots={runtime.slots}
-            name="reader.view.tail"
-            className="air-reader-tail"
-            onError={onSlotError}
-          />
+          {/* P3.2：阅读区尾部（插件席位）。没有插件占位时整条不存在，不占地方。
+              手机上它现在**搬进底栏里面**（见下），这样底部只有一条玻璃栏，不会一透明一不透明两条叠着。 */}
+          {!mobile && (
+            <SlotView
+              slots={runtime.slots}
+              name="reader.view.tail"
+              className="air-reader-tail"
+              onError={onSlotError}
+            />
+          )}
 
-          {/* ---------- P7 手机端阅读底栏（点屏幕中间一次，跟顶栏一起出现） ----------
-              参考阅读器的底栏只有页码与几个图标；用户的额外要求是**AI 也要在这一栏**。 */}
+          {/*
+            P12 阅读页底部：**一条栏**，内容只有一个"问点什么"输入框。
+            点它（或直接在阅读页上点一下中间）就能唤起半透明的 AI 卡片 ——
+            不需要先找到某个 AI 按钮。
+            页码不在这里：它常驻在正文右下角（见 .air-reader-pageno）。
+          */}
+          {/* 页码：常驻在正文右下角（参考里"还剩 78 页"也是这个位置），不占版面 */}
+          {mobile && bookName && (
+            <div className="air-reader-pageno">{location || (fraction ? Math.round(fraction * 100) + "%" : "")}</div>
+          )}
+
           {mobile && bookName && (
             <div className="air-reader-dock" data-on={chromeOn ? "true" : "false"}>
-              {/*
-                P11（照 453 参考）：底部**只放"页码 + AI"**这两样。
-                其余功能全搬到顶栏那一排图标（目录 / 字号 / 检索 / 书签），
-                浮层越简单，正文越像"一页纸"。
-              */}
-              <div className="air-reader-dockbar">
-                <span className="air-reader-pageinfo">
-                  {location || (fraction ? Math.round(fraction * 100) + "%" : "")}
-                </span>
-                <button
-                  className="air-dock-ai"
-                  onClick={() => {
-                    hideChrome();
-                    setAiOpen(true);
-                  }}
-                >
-                  <AiIcon />
-                  <span>{t("app.tabAi")}</span>
-                </button>
-              </div>
+              <SlotView
+                slots={runtime.slots}
+                name="reader.view.tail"
+                className="air-reader-tail"
+                onError={onSlotError}
+              />
+              <button
+                className="air-chat-launcher"
+                onClick={() => {
+                  hideChrome();
+                  setAiOpen(true);
+                }}
+              >
+                <AiIcon />
+                <span className="air-chat-launcher-text">{t("chat.inputPlaceholderShort")}</span>
+              </button>
             </div>
           )}
         </div>
+
+
 
         {/* 书库列（P3.7 待办 B）：与阅读列并列，各自切 display */}
         {/* 手机端 AI 页占满主区时，书库列要让位（否则两列并排，书库被挤成几十像素宽） */}

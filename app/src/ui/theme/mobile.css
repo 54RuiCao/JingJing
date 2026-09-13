@@ -1876,3 +1876,148 @@ html[data-mobile="true"] body {
   line-height: 1.5;
 }
 
+
+/* ============================================================================
+ * P12：阅读页再收一轮（用户的四条反馈）
+ *   1) 顶栏：返回键在左，其余图标**全部靠右**
+ *   2) 底部两条栏（插件尾部 + 底栏）**合并成一条**玻璃栏
+ *   3) AI 入口做成**输入框的样子**，不用先找按钮
+ *   4) 页码常驻正文**右下角**，不再占一条栏
+ * ========================================================================== */
+
+/* ---------- 1) 顶栏：左返回 / 右功能 ---------- */
+
+.air-app[data-mobile="true"] .air-reader-shell > .air-bar > button:first-child {
+  margin-right: auto;
+}
+
+/* ---------- 2+3) 底部合并成一条，里面就是一个输入框 ---------- */
+
+.air-app[data-mobile="true"] .air-reader-dock {
+  padding: 8px var(--m-pad) calc(8px + env(safe-area-inset-bottom));
+}
+
+/* 插件贡献的"阅读区尾部"：不再自己一条（透明/不透明两层叠着），改成底栏里的第一行 */
+.air-app[data-mobile="true"] .air-reader-dock .air-reader-tail {
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  background: transparent;
+  border: 0;
+  margin: 0 0 6px;
+  font-size: var(--m-t-cap);
+  opacity: 0.9;
+}
+
+/* AI 入口 = 一个像输入框的按钮 */
+.air-app[data-mobile="true"] .air-chat-launcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-panel) 72%, transparent);
+  box-shadow: var(--m-hairline);
+  color: var(--m-sub);
+  font-size: var(--m-t-body);
+  font-weight: 400;
+  text-align: left;
+}
+
+.air-app[data-mobile="true"] .air-chat-launcher svg {
+  width: 20px;
+  height: 20px;
+  color: var(--m-tint);
+  flex: 0 0 auto;
+}
+
+.air-app[data-mobile="true"] .air-chat-launcher-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 老的两件（页码栏 + AI 药丸）不再用 */
+.air-app[data-mobile="true"] .air-reader-dockbar,
+.air-app[data-mobile="true"] .air-dock-ai {
+  display: none;
+}
+
+/* ---------- 4) 页码：常驻正文右下角 ---------- */
+
+.air-reader-pageno {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-reader-pageno {
+  display: block;
+  position: absolute;
+  right: 14px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 4;
+  font-size: var(--m-t-cap);
+  font-variant-numeric: tabular-nums;
+  color: var(--m-sub);
+  opacity: 0.9;
+  pointer-events: none;
+  transition: bottom 0.2s ease;
+}
+
+/* 底栏出现时把页码抬到它上面，别被压住 */
+.air-app[data-mobile="true"] .air-reader-col[data-chrome="true"] .air-reader-pageno {
+  bottom: calc(70px + env(safe-area-inset-bottom));
+}
+
+/* ---------- 5) AI 卡片：输入条贴到卡片底部、整体矮一点 ---------- */
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-input {
+  margin-top: auto; /* 内容不满一屏时也贴底（用户截图里它悬在半空） */
+  padding: 8px var(--m-pad) calc(8px + env(safe-area-inset-bottom));
+}
+
+.air-app[data-mobile="true"] .air-ai-col textarea {
+  min-height: 40px;
+  height: 40px;
+  padding: 9px 12px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-input button {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: var(--m-t-sub);
+}
+
+
+/* 底栏里的插件尾部：一行放得下就别折行（真机截图里"回开头"被折成两行） */
+.air-app[data-mobile="true"] .air-reader-dock .air-reader-tail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.air-app[data-mobile="true"] .air-reader-dock .air-reader-tail button {
+  flex: 0 0 auto;
+  min-height: 28px;
+  min-width: 0;
+  width: auto;
+  padding: 2px 10px;
+  font-size: var(--m-t-cap);
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--m-grouped);
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-reader-dock .air-reader-tail > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
