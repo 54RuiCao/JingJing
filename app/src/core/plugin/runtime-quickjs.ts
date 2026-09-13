@@ -243,6 +243,19 @@ export const QUICKJS_PRELUDE = [
     "      var r = JSON.parse(String(host.clearTimer(String(handle))));",
     "      if (r.error) throw new Error(r.error);",
     "    },",
+    // P5：宿主给的两样"Node 里白送"的东西：随机 id 与环境事实（都不需要授权）
+    "    crypto: {",
+    "      randomUUID: function () { var r = JSON.parse(String(host.crypto('uuid', 0))); if (r.error) throw new Error(r.error); return r.value; },",
+    "      randomHex: function (n) { var r = JSON.parse(String(host.crypto('randomHex', Number(n || 16)))); if (r.error) throw new Error(r.error); return r.value; },",
+    "    },",
+    "    env: function () { var r = JSON.parse(String(host.env())); if (r.error) throw new Error(r.error); return r.value; },",
+    // 纯 JS 的小工具（不需要宿主）：插件拼文件名/截断文本时天天要用
+    "    text: {",
+    "      basename: function (p) { var s = String(p || '').replace(/[\\\\/]+$/, ''); var i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\\\')); return i < 0 ? s : s.slice(i + 1); },",
+    "      extname: function (p) { var b = String(p || ''); var i = b.lastIndexOf('.'); return i <= 0 ? '' : b.slice(i); },",
+    "      truncate: function (s, n) { var t = String(s || ''); return t.length <= n ? t : t.slice(0, Math.max(0, n - 1)) + '…'; },",
+    "      slug: function (s) { return String(s || '').trim().replace(/[\\\\/:*?\"<>|]+/g, '-').replace(/\\s+/g, '-').slice(0, 60); },",
+    "    },",
   "    on: function () {",
   "      throw new Error('ctx.on 还没接入：动态包不能订阅宿主事件（要重渲染就调 ctx.slots.refresh()）');",
   "    },",
@@ -822,6 +835,54 @@ export class DynamicPluginInstance {
         cancel();
         this.timers.delete(id);
         return vm.newString(JSON.stringify({ ok: true }));
+      }),
+    );
+
+    /**
+     * P5：把"Node 里随手就有、插件最常用"的两样补齐 —— **随机/唯一 id** 与**宿主环境事实**。
+     * DSH 这两样是 Node 白送的（crypto / process.env），我们这边从宿主函数来。
+     * 都是同步、无副作用、不需要授权（不碰用户数据，也花不了钱）。
+     */
+    set(
+      "crypto",
+      vm.newFunction("hostCrypto", (opHandle, argHandle) => {
+        const op = String(vm.dump(opHandle));
+        try {
+          if (typeof crypto === "undefined") return vm.newString(JSON.stringify({ error: "这个环境没有 crypto" }));
+          if (op === "uuid") return vm.newString(JSON.stringify({ value: crypto.randomUUID() }));
+          if (op === "randomHex") {
+            const asked = Number(vm.dump(argHandle));
+            const n = Math.min(Math.max(Number.isFinite(asked) ? Math.floor(asked) : 16, 1), 256);
+            const bytes = new Uint8Array(Math.ceil(n / 2));
+            crypto.getRandomValues(bytes);
+            const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+            return vm.newString(JSON.stringify({ value: hex.slice(0, n) }));
+          }
+          return vm.newString(JSON.stringify({ error: "不支持的 crypto 操作：" + op + "（可用：uuid / randomHex）" }));
+        } catch (e) {
+          return vm.newString(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }));
+        }
+      }),
+    );
+
+    set(
+      "env",
+      vm.newFunction("hostEnv", () => {
+        // 宿主侧事实：插件拿它做"移动端/桌面端不同布局"这类判断（Tauri 没有 process.env）
+        const facts: Record<string, unknown> = { now: Date.now() };
+        try {
+          if (typeof navigator !== "undefined") {
+            facts.locale = navigator.language || null;
+            facts.touch = (navigator.maxTouchPoints ?? 0) > 0 || "ontouchstart" in window;
+            facts.userAgent = String(navigator.userAgent || "").slice(0, 120);
+          }
+          facts.platform = document?.documentElement?.dataset?.mobile === "true" ? "mobile" : "desktop";
+          facts.viewport = { w: window.innerWidth, h: window.innerHeight };
+          facts.theme = document?.documentElement?.dataset?.theme ?? null;
+        } catch {
+          /* 读不到就给最少的事实 */
+        }
+        return vm.newString(JSON.stringify({ value: facts }));
       }),
     );
 

@@ -73,11 +73,37 @@ export const DYNAMIC_CTX_API: { api: string; capability: string | null; note: st
     capability: "reader.read",
     note:
       "宿主采集的**阅读活动**（每天读了多少秒/翻了多少页）：{ today, todaySeconds, todayTurns, days:[{day,seconds,turns}], totalSeconds, activeDays, streak, longestStreak, bestDay }。" +
-      "做热力图/阅读目标/连续天数用它 —— 插件沙箱里没有定时器，读时长只能由宿主记",
+      "做热力图/阅读目标/连续天数用它 —— 阅读时长只能由宿主记（插件看不到焦点/路由，也记不准）",
   },
   { api: "await ctx.reader.addAnnotation({kind,cfi,text,note,color})", capability: "reader.annotate", note: "写批注（kind: highlight|note|bookmark）" },
   { api: "await ctx.reader.gotoChapter(n) / gotoCfi(cfi) / gotoFraction(f)", capability: "reader.navigate", note: "改阅读位置" },
   { api: "await ctx.storage.get/set/remove/keys", capability: "storage.plugin", note: "插件自己的存储（按 pluginId 隔离）" },
+  /**
+   * P5 新增：宿主提供的**计时器**（照 DSH 的 timer 服务）。
+   * 以前沙箱里连 setTimeout 都没有，插件想做"每 N 秒刷新"只能靠用户点按钮 —— 现在有正规通道，
+   * 而且**卸载时宿主会统一清掉**（interval 是插件最典型的泄漏源），所以写插件不必自己管取消。
+   */
+  {
+    api: "ctx.timeout(fn, ms) / ctx.interval(fn, ms) / ctx.clear(handle)",
+    capability: null,
+    note:
+      "同步返回 handle，用 ctx.clear(handle) 取消；**插件卸载时宿主会自动清掉所有未取消的定时器**。" +
+      "interval 最小 100ms（防 1ms 定时器拖死界面）。要做轮询刷新就用它，别用 while/setTimeout（沙箱里没有）。" +
+      "回调里可以正常用 ctx.*，但要记得：界面刷新要调 ctx.slots.refresh()。",
+  },
+  { api: "ctx.crypto.randomUUID() / ctx.crypto.randomHex(n)", capability: null, note: "随机唯一 id / 随机十六进制串（1~256 位）。不需要授权" },
+  {
+    api: "ctx.env()",
+    capability: null,
+    note:
+      "宿主环境事实（同步）：{ platform: 'mobile'|'desktop', locale, touch, viewport:{w,h}, theme, userAgent, now }。" +
+      "做「手机/桌面不同布局」或「按当前主题配色」时用它 —— 沙箱里没有 navigator/window/process。",
+  },
+  {
+    api: "ctx.text.basename(p) / extname(p) / truncate(s,n) / slug(s)",
+    capability: null,
+    note: "纯字符串小工具：取文件名、扩展名、按字符截断（带省略号）、把标题变成安全的文件名片段。不需要授权。",
+  },
   {
     api: "★ 声明 ai.credentials（与 net.fetch 一起）后：对**你配置的 AI 服务**发 GET 时，宿主会自动带上 Authorization",
     capability: "ai.credentials",
