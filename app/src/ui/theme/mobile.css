@@ -2760,3 +2760,50 @@ html[data-mobile="true"] body {
   border-radius: 999px;
 }
 
+
+/* P19：底栏**恢复居中**（上一轮改成靠左，用户说应该居中） */
+.air-app[data-mobile="true"] .air-tabbar {
+  justify-content: center;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-pill {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+}
+
+/* "重新装载"不许竖排（被挤成一列字了） */
+.air-app[data-mobile="true"] .air-chat-ctx-btn {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* 页签切换的滑动动画：往左滑进、往右滑进都有一点位移感 */
+.air-app[data-mobile="true"] .air-lib-col,
+.air-app[data-mobile="true"] .air-ai-col {
+  animation: air-tab-in 0.26s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes air-tab-in {
+  from {
+    opacity: 0.35;
+    transform: translateX(22px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* 整页 AI：进入时不要出现"底部栏被顶下去"的跳动（内容高度按 100% 算，别再叠 padding） */
+.air-app[data-mobile="true"] .air-ai-col {
+  height: auto;
+  min-height: 0;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+

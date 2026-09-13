@@ -1434,6 +1434,8 @@ export default function App() {
        * 现在只让"左右两侧翻页"依赖分页模式；中间点击是显示/隐藏控件，两种模式都该生效。
        */
       if (zone === "prev" || zone === "next") {
+        // P19：翻页时把浮层收起（点出来的上下栏不该一直杵在正文上）
+        hideChrome();
         if (flow !== "paginated") return;
         void (zone === "prev" ? handleRef.current?.prev() : handleRef.current?.next());
         return;
@@ -2031,18 +2033,10 @@ export default function App() {
                 else if (Math.abs(dy) < 12) setAiSheetSize((s) => (s === "medium" ? "large" : "medium"));
               }}
             />
+            {/* P19：非阅读页的 AI **不再有关闭按钮** —— 底部页签本身就是出口。
+                阅读页那张卡片的整条头部（含 ✕）在上一轮已经删掉了。 */}
             <div className={"air-page-head" + (route === "reader" ? " air-ai-sheet-only-hide" : "")}>
               <h1 className="air-page-title">{t("app.tabAi")}</h1>
-              <button
-                className="air-page-close"
-                aria-label={t("app.closePanel")}
-                onClick={() => {
-                  setAiOpen(false);
-                  if (route === "library") setMobileTab("library");
-                }}
-              >
-                ✕
-              </button>
             </div>
             <ChatPanel {...aiPanelProps} />
           </div>
