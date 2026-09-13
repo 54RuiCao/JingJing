@@ -616,98 +616,10 @@ html[data-mobile="true"] body {
 }
 
 /* ============================================================================
- * P7 手机端：底部导航 + 首页版式 + 阅读底栏 + 排版面板
- *
- * 这一批是照参考设计的**UI 逻辑**抄的（不只是配色）：
- *   · Apple Books：浮动胶囊底栏（Home / Library / Book Store + 搜索圆钮）→ 我们把
- *     Book Store 那格换成 AI；首页 = 继续阅读卡片 + 接下来横向书架 + 居中计数；
- *     书库 = 大封面网格 + 角标 + 居中计数；
- *   · 阅读界面（453）：顶部一排细线图标、底部居中页码 + 右侧"还剩 N 页"，
- *     排版面板（AA）是贴着按钮弹出来的小面板；控件**默认隐藏**，点一次屏幕才出现。
- * ========================================================================== */
-
-/* ---------- 1. 浮动胶囊底栏 ---------- */
-
-.air-tabbar {
-  display: none;
-}
-
-.air-app[data-mobile="true"] .air-tabbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(10px + env(safe-area-inset-bottom));
-  z-index: 40;
-  pointer-events: none; /* 只有胶囊与圆钮可点，缝里点得到正文 */
-}
-
-.air-app[data-mobile="true"] .air-tabbar-pill,
-.air-app[data-mobile="true"] .air-tabbar-fab {
-  pointer-events: auto;
-  background: color-mix(in srgb, var(--m-panel) 86%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
-}
-
-.air-app[data-mobile="true"] .air-tabbar-pill {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  gap: 2px;
-  padding: 4px;
-  border-radius: 999px;
-}
-
-.air-app[data-mobile="true"] .air-tabbar-item {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 46px;
-  padding: 4px 2px;
-  border: 0;
-  background: transparent;
-  color: var(--m-sub);
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
 
 /* 选中那一格：浅底圆角块（参考里就是"白底包住图标+文字"） */
-.air-app[data-mobile="true"] .air-tabbar-item[data-active="true"] {
-  background: var(--m-grouped);
-  color: var(--m-text);
-}
-
-.air-app[data-mobile="true"] .air-tabbar-item svg {
-  width: 22px;
-  height: 22px;
-}
 
 /* 搜索：独立圆钮（参考里它跟胶囊分开，右边悬着一个圆） */
-.air-app[data-mobile="true"] .air-tabbar-fab {
-  flex: 0 0 auto;
-  width: 54px;
-  height: 54px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--m-text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.air-app[data-mobile="true"] .air-tabbar-fab svg {
-  width: 23px;
-  height: 23px;
-}
 
 /* 底栏会盖住列表最后一行：给内容留出它的高度 */
 .air-app[data-mobile="true"] .air-library,
@@ -1154,7 +1066,6 @@ html[data-mobile="true"] body {
   font-weight: 600;
 }
 
-
 /* 头部右上角的设置圆钮（参考：顶部右侧那排圆形按钮） */
 .air-app[data-mobile="true"] .air-lib-gear {
   flex: 0 0 auto;
@@ -1181,7 +1092,6 @@ html[data-mobile="true"] body {
 .air-app[data-mobile="true"] .air-lib-headrow {
   align-items: center;
 }
-
 
 /* 卡片下方那一行：格式胶囊（左）+ •••（右）—— 参考书库页的做法 */
 .air-app[data-mobile="true"] .air-card-meta {
@@ -1260,7 +1170,6 @@ html[data-mobile="true"] body {
   position: relative;
 }
 
-
 /* 阅读页顶栏：手机上**不放书名**（参考的阅读顶栏就是纯图标排）——
    居中标题会和左右按钮打架（实测"书签"被标题压住）。书名改到底栏那行信息里。 */
 .air-app[data-mobile="true"] .air-reader-shell .air-bar .air-bar-title {
@@ -1282,20 +1191,17 @@ html[data-mobile="true"] body {
   border-top: 1px solid var(--m-line);
 }
 
-
 /* 卡片下方那一行（格式胶囊 + •••）**只在手机上有** —— 桌面保持原来的样子：
    封面右上角 🏷、悬停出移除，不引入新的交互 */
 .air-card-meta {
   display: none;
 }
 
-
 /* 导入按钮不许换行 —— 真机上它被搜索框挤成两行（"导入/书籍"） */
 .air-app[data-mobile="true"] .air-lib-import {
   flex: 0 0 auto;
   white-space: nowrap;
 }
-
 
 /* ============================================================================
  * P8：阅读页里的 AI 改成**半屏卡片**（照参考 App 的底部卡片形态）
@@ -1362,7 +1268,6 @@ html[data-mobile="true"] body {
   z-index: 69;
   background: rgba(0, 0, 0, 0.22);
 }
-
 
 /* ============================================================================
  * P9：毛玻璃（参考 App 的导航/弹出层质感）+ AI 面板的页边距
@@ -1520,7 +1425,6 @@ html[data-mobile="true"] body {
   padding: 0 18px;
 }
 
-
 /* ============================================================================
  * P10：照 Apple HIG 再修一轮（要点见 design.md §8）
  *   · 材料（Materials）：控件与导航**浮在内容层之上**，内容从下面滚过去，不被推开
@@ -1611,7 +1515,6 @@ html[data-mobile="true"] body {
   height: 44px;
   min-height: 44px;
 }
-
 
 /* ============================================================================
  * P11：照 453 参考重排阅读页的浮层 + 修 AI 的几个实测问题
@@ -1876,7 +1779,6 @@ html[data-mobile="true"] body {
   line-height: 1.5;
 }
 
-
 /* ============================================================================
  * P12：阅读页再收一轮（用户的四条反馈）
  *   1) 顶栏：返回键在左，其余图标**全部靠右**
@@ -1993,7 +1895,6 @@ html[data-mobile="true"] body {
   font-size: var(--m-t-sub);
 }
 
-
 /* 底栏里的插件尾部：一行放得下就别折行（真机截图里"回开头"被折成两行） */
 .air-app[data-mobile="true"] .air-reader-dock .air-reader-tail {
   display: flex;
@@ -2020,7 +1921,6 @@ html[data-mobile="true"] body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 
 /* ============================================================================
  * P13：收尾几处（用户的六条反馈）
@@ -2141,7 +2041,6 @@ html[data-mobile="true"] body {
   border-top: 1px solid var(--m-line);
 }
 
-
 /* ============================================================================
  * P14：AI 面板的三处硬伤（用户截图）
  *   1) 长字符串（技能名 / 路径）把页面撑出横向滚动
@@ -2233,7 +2132,6 @@ html[data-mobile="true"] body {
 .air-app[data-mobile="true"] .air-chat-config input {
   min-height: 40px;
 }
-
 
 /* ============================================================================
  * P14：首页（继续阅读 / 欲读清单 / 已读完 + 阅读目标）与书库页头的重排
@@ -2412,78 +2310,11 @@ html[data-mobile="true"] body {
 
 /* ---------- 底栏滚动时收成一个圆钮 ---------- */
 
-.air-app[data-mobile="true"] .air-tabbar-mini {
-  pointer-events: auto;
-  width: 54px;
-  height: 54px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-glass-strong);
-  backdrop-filter: var(--m-glass-blur);
-  -webkit-backdrop-filter: var(--m-glass-blur);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14), var(--m-hairline);
-  color: var(--m-text);
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-
-.air-app[data-mobile="true"] .air-tabbar-mini svg {
-  width: 24px;
-  height: 24px;
-}
-
-.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-pill {
-  display: none;
-}
-
-.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-mini {
-  display: flex;
-}
-
 .air-tabbar-mini {
   display: none;
 }
 
-
 /* ============================================================================
- * P15：过渡动画 / 对齐 / 统一高度 / 滑动切换
- * ========================================================================== */
-
-/* 1) 底栏收起：淡入淡出 + 缩放，搜索钮**位置不动**（钉在最右） */
-.air-app[data-mobile="true"] .air-tabbar-fab {
-  margin-left: auto;
-}
-
-.air-app[data-mobile="true"] .air-tabbar-pill {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  transform-origin: left center;
-}
-
-.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-pill {
-  display: flex;            /* 不 display:none，才能做动画 */
-  opacity: 0;
-  transform: scale(0.88) translateX(-8px);
-  pointer-events: none;
-  position: absolute;       /* 退出布局，圆钮直接占位，搜索钮不动 */
-  left: 12px;
-  right: 78px;
-  bottom: 0;
-}
-
-.air-app[data-mobile="true"] .air-tabbar-mini {
-  display: flex;
-  opacity: 0;
-  transform: scale(0.7);
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-mini {
-  opacity: 1;
-  transform: scale(1);
-  pointer-events: auto;
-}
 
 /* 2) 抽屉：所有页签**同一个高度**（书组那一页的高度），切换时不跳 */
 .air-app[data-mobile="true"] .air-side {
@@ -2529,7 +2360,6 @@ html[data-mobile="true"] body {
   touch-action: pan-y;
 }
 
-
 /* 阅读排版那三行：定宽标签 + 滑块，行距收紧（用户截图里文字在滑块下面，很乱） */
 .air-app[data-mobile="true"] .air-typo-set {
   margin-bottom: 4px !important;
@@ -2556,7 +2386,6 @@ html[data-mobile="true"] body {
   min-width: 0;
   margin: 0 !important;
 }
-
 
 /* Aa 面板里的字号：数字输入框（自己填） */
 .air-app[data-mobile="true"] .air-typo-readout {
@@ -2606,21 +2435,7 @@ html[data-mobile="true"] body {
   max-height: none;
 }
 
-
 /* ============================================================================
- * P17：底栏靠左 + 去掉搜索钮 + 阅读页浮层圆角/浮动输入框/浮动 AI 卡片
- * ========================================================================== */
-
-/* 底栏：整条靠左（胶囊不再拉满），搜索钮已删 */
-.air-app[data-mobile="true"] .air-tabbar {
-  justify-content: flex-start;
-  gap: 8px;
-}
-
-.air-app[data-mobile="true"] .air-tabbar-pill {
-  flex: 0 0 auto;
-  min-width: 244px;
-}
 
 /* 页面切换的过渡：切页签时内容轻微淡入（配合左右滑） */
 .air-app[data-mobile="true"] .air-lib-col,
@@ -2686,7 +2501,6 @@ html[data-mobile="true"] body {
 .air-app[data-mobile="true"] .air-bookmark-btn[data-on="true"] {
   color: var(--m-tint);
 }
-
 
 /* b) 阅读页顶栏：不要再空出一行（把手/图标贴紧，高度收到 46） */
 .air-app[data-mobile="true"] .air-reader-shell > .air-bar {
@@ -2760,17 +2574,7 @@ html[data-mobile="true"] body {
   border-radius: 999px;
 }
 
-
 /* P19：底栏**恢复居中**（上一轮改成靠左，用户说应该居中） */
-.air-app[data-mobile="true"] .air-tabbar {
-  justify-content: center;
-}
-
-.air-app[data-mobile="true"] .air-tabbar-pill {
-  flex: 0 1 auto;
-  min-width: 250px;
-  padding: 4px 8px;
-}
 
 /* "重新装载"不许竖排（被挤成一列字了） */
 .air-app[data-mobile="true"] .air-chat-ctx-btn {
@@ -2807,22 +2611,7 @@ html[data-mobile="true"] body {
   min-height: 0;
 }
 
-
 /* ============================================================================
- * P20：底栏偏移修掉 + 整页 AI 的输入框照 ChatGPT iOS 23 做成悬浮胶囊
- *  （这一节放在最后，覆盖前面几轮留下的重复规则）
- * ========================================================================== */
-
-/* ---------- 1) 底栏：永远留在屏幕内 ----------
-   之前只写了 env(safe-area-inset-bottom)：沉浸式下这个值可能是 0，
-   在某些机型上 fixed 的底边会落到可视区之外（截图里"任务栏被切掉一半"）。
-   这里给一个最小 10px 的兜底，并同时抬一点点。 */
-.air-app[data-mobile="true"] .air-tabbar {
-  left: 12px;
-  right: 12px;
-  bottom: calc(10px + max(env(safe-area-inset-bottom), 10px));
-  justify-content: center;
-}
 
 /* 页面内容给底栏留的位置也要跟它对齐（74px ≈ 胶囊 54 + 上下留白 + 一点点呼吸） */
 .air-app[data-mobile="true"] .air-library,
@@ -2882,5 +2671,129 @@ html[data-mobile="true"] body {
   margin: 8px 0 0;
   background: var(--m-glass-strong);
   border-top: 1px solid var(--m-line);
+}
+
+
+/* ============================================================================
+ * 底部任务栏（唯一一处定义 —— 之前散在 6 个块里互相覆盖，是"偏移/不居中"的根因）
+ *   参考：Apple Books iOS 7 的浮动胶囊。规则：
+ *     · 水平居中、左右各留 12px、距底 10px + max(安全区,10px)
+ *     · 选中格＝浅底圆角块 + 强调色；未选中＝灰图标 + 10.5px 灰字
+ *     · 向下滚动收成"当前页签一个圆钮"，再向上滚或点它展开（带过渡）
+ * ========================================================================== */
+
+.air-tabbar,
+.air-tabbar-mini,
+.air-tabbar-pill,
+.air-tabbar-item {
+  box-sizing: border-box;
+}
+
+/* 桌面不显示 */
+.air-tabbar,
+.air-tabbar-mini {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-tabbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;      /* ← 居中 */
+  gap: 8px;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + max(env(safe-area-inset-bottom), 10px));
+  z-index: 40;
+  pointer-events: none;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-pill {
+  pointer-events: auto;
+  flex: 0 1 auto;
+  min-width: 250px;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-panel) 86%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14), var(--m-hairline);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform-origin: center;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-item {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 46px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-sub);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-item[data-active="true"] {
+  background: var(--m-grouped);
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-tabbar-item svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* 收起态：胶囊淡出并退出布局，圆钮补位；**水平同样居中** */
+.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] {
+  justify-content: center;
+}
+
+.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-pill {
+  display: none;
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.air-app[data-mobile="true"] .air-tabbar-mini {
+  pointer-events: auto;
+  width: 54px;
+  height: 54px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-panel) 86%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14), var(--m-hairline);
+  color: var(--m-text);
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-mini {
+  display: flex;
+  opacity: 1;
+  transform: scale(1);
+}
+
+.air-app[data-mobile="true"] .air-tabbar-mini svg {
+  width: 24px;
+  height: 24px;
 }
 
