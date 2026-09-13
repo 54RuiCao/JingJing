@@ -1,6 +1,6 @@
 # JingJing
 
-A local-first desktop reader. Your books, highlights, reading positions and AI key all stay on your own computer.
+A local-first desktop and Android reader. Your books, highlights, reading positions and AI key all stay on your own device.
 
 ![Library](screenshots/library-en.png)
 
@@ -23,14 +23,31 @@ The interface follows your system language (Chinese / English) and you can switc
 
 ![Android](screenshots/android.png)
 
-The phone build shares the same codebase; the layout reflows for narrow screens — the sidebar becomes a
-**bottom sheet** (contents / notes / search / AI / settings all live there) and it accounts for the system
-gesture bar and the soft keyboard.
+The phone build shares the same codebase, but its interface is a **separate design for narrow screens**
+(not the desktop layout squeezed down):
+
+- **Bottom navigation with three tabs**: Home / Library / AI — a centred floating glass pill. Scrolling down
+  collapses it into a small circle showing the current tab; scroll up or tap it to expand.
+  **You can also swipe left/right between the three pages.**
+- **Home**: three sections — Continue / Want to Read / Finished (each on a soft gradient card) — with a
+  "Reading Goals" card at the bottom (today's reading time vs. a daily goal).
+- **Library**: two large cover columns; under each cover a format chip and a ••• menu (group / remove live
+  there); three round buttons top-right for sort / import / settings.
+- **Reader**: **tap the middle once** to bring up two floating bars — the top one holds back / contents /
+  type size / search / bookmark, the bottom one is just a floating "ask something" field that opens the AI.
+  Both bars hide again as soon as you turn a page. The page number sits in the bottom-right corner of the
+  text, and all typography (type size — typed in directly — line height, indent, paper colour, paged vs.
+  scrolling) lives in the "Aa" panel.
+- **AI**: inside the reader it is a **half-screen card** floating over the lower half of the page (your
+  reading position is untouched); on Home/Library it is a full page. Capabilities, plugins and tools are
+  identical to the desktop build.
+- **Full screen**: the app hides the system navigation bar on launch (swipe from the edge to bring it back
+  temporarily), so the bottom bar can sit right at the bottom.
 
 - **Install**: download `鲸鲸-安卓测试版-0.1.0.apk` (9.4 MB, Android 7+, arm64). The system will warn about
   an unknown source — allow it once (self-signed build, not from a store).
-- **Controls**: swipe or **tap the left/right edge** to turn pages, tap the middle to toggle the sheet,
-  pinch to zoom, and the back gesture closes the sheet first, then returns to the shelf.
+- **Controls**: swipe or **tap the left/right edge** to turn pages, tap the middle to toggle the bars,
+  pinch to zoom, and the back gesture closes the panel first, then returns to the shelf.
 - **Features**: library, reading, highlights and notes, full-text search, AI and plugins (9 built-in) are
   the same as on the desktop; plugin bundles are imported by pasting JSON or picking a `.json` file.
 - **Limits**: no PDF, no book sources, no DRM removal; this is a self-signed beta build.
@@ -60,7 +77,7 @@ Writing your own: see [docs/plugin-api.md](docs/plugin-api.md) ([English](docs/p
 ## Not supported
 
 - PDF (deliberately out of scope); no book sources, no DRM removal
-- Windows only for now; an Android version is in development
+- The Android build is a **self-signed beta** (Android 7+ / arm64); there is no iOS build
 - The plugin sandbox is API discipline, not a security boundary — it stops mistakes, not malicious code
 
 ## Disclaimer

@@ -1,7 +1,7 @@
 # 鲸鲸 / JingJing
 
-本地优先的桌面阅读器：书、批注、进度和 AI 密钥都留在你自己的电脑上。
-A local-first desktop reader. Your books, highlights, reading positions and AI key all stay on your own computer.
+本地优先的桌面 / 安卓阅读器：书、批注、进度和 AI 密钥都留在你自己的设备上。
+A local-first desktop and Android reader. Your books, highlights, reading positions and AI key all stay on your own device.
 
 **语言 / Language：[中文 ↓](#中文) · [English ↓](#english)**
 
@@ -29,11 +29,22 @@ The interface follows your system language and can be switched any time under Se
 
 ![安卓版](screenshots/android.png)
 
-手机版和桌面版共用同一套代码，界面按窄屏重排：**侧栏变成底部抽屉**（目录 / 批注 / 检索 / AI / 设置与插件都在里面），并照顾了系统手势条与软键盘。
+手机版和桌面版共用同一套代码，但界面是**按窄屏重新设计过**的一套（不是把桌面挤一挤）：
+
+- **底部三格导航**：首页 / 书库 / AI，浮动胶囊、居中、毛玻璃；往下滚会收成"当前那一格"的小圆钮，
+  往上滚或点它就展开。**左右滑动也能在三页之间切换**。
+- **首页**：继续阅读 / 欲读清单 / 已读完三栏（各带渐变底卡），最下面是「阅读目标」卡（今日时长 + 目标）
+- **书库**：两列大封面，封面下方是「格式胶囊 + •••」（归类 / 移除收在 ••• 里）；右上角三个圆钮＝排序 / 导入 / 设置
+- **阅读页**：**点一下屏幕中间**唤出上下两条浮动栏 —— 顶栏是 返回 / 目录 / 字号 Aa / 检索 / 书签，
+  底栏就是**一个"问点什么"的悬浮输入框**（点它直接唤起 AI）；翻页时两条栏会自动收起。
+  页码常驻正文右下角；排版（字号可直接填数字、行距、首行缩进、纸色、分页-滚动）都在 Aa 面板里调。
+- **AI**：阅读页里是浮在正文下半部的**半屏卡片**（不打断阅读位置），书库 / 首页里是**整页**；
+  能力和桌面的插件、工具完全一致
+- **全屏**：进入应用会收起系统导航栏（从边缘上滑可临时唤出），所以底部栏能真正贴底
 
 - **安装**：下载 `鲸鲸-安卓测试版-0.1.0.apk`（9.4 MB，Android 7+ / arm64），点开安装时系统会提示"未知来源"，
   允许一下即可（自签名包，不是应用商店包）
-- **操作**：左右滑动或**点屏幕左右两侧**翻页；点中间开关抽屉；双指缩放；返回键先收抽屉、再回书架
+- **操作**：左右滑动或**点屏幕左右两侧**翻页；点中间开关上下栏；双指缩放；返回键先收面板、再回书架
 - **功能**：书库 / 阅读 / 划线笔记 / 全文检索 / AI / 插件（9 个内置插件）都和桌面版一致；
   插件包在手机上用「粘贴 JSON」或「选 .json 文件」导入
 - **限制**：不支持 PDF；没有书源、不破解 DRM；目前是自签名测试包
@@ -67,7 +78,7 @@ Key 由宿主代填，不会交给插件。
 ### 不支持
 
 - PDF（明确不做）；不提供书源，也不移除 DRM
-- 目前只有 Windows，Android 版在开发中
+- 安卓版是**自签名测试包**（Android 7+ / arm64），没有 iOS 版
 - 插件沙箱是 API 纪律，不是安全边界，它防手滑，不防恶意代码
 
 ### 免责声明
@@ -121,6 +132,21 @@ MIT。内置的渲染引擎 [foliate-js](https://github.com/johnfactotum/foliate
 
 ![Reader](screenshots/reader-en.png)
 
+### Android (beta)
+
+![Android](screenshots/android.png)
+
+Same codebase, but a **separate interface designed for narrow screens**: a centred floating bottom bar with
+three tabs (Home / Library / AI) that collapses to a small circle while you scroll, three home sections
+(Continue / Want to Read / Finished) plus a reading-goals card, a two-column library with sort / import /
+settings round buttons, and a reader whose two floating bars appear on a single tap (top: back / contents /
+type size / search / bookmark; bottom: a floating "ask something" field that opens a half-screen AI card).
+The app hides the system navigation bar on launch so the bottom bar can sit at the very bottom.
+
+- **Install**: download `鲸鲸-安卓测试版-0.1.0.apk` (9.4 MB, Android 7+, arm64); allow the unknown-source
+  warning once (self-signed, not from a store).
+- **Limits**: no PDF, no book sources, no DRM removal.
+
 ### AI
 
 Bring a DeepSeek key, or point it at any OpenAI-compatible endpoint, or a local Ollama.
@@ -144,7 +170,7 @@ Writing your own: see [docs/plugin-api.md](docs/plugin-api.md) ([English](docs/p
 ### Not supported
 
 - PDF (deliberately out of scope); no book sources, no DRM removal
-- Windows only for now; an Android version is in development
+- The Android build is a **self-signed beta** (Android 7+ / arm64); there is no iOS build
 - The plugin sandbox is API discipline, not a security boundary — it stops mistakes, not malicious code
 
 ### Disclaimer
