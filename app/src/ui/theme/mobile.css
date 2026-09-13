@@ -2021,3 +2021,123 @@ html[data-mobile="true"] body {
   text-overflow: ellipsis;
 }
 
+
+/* ============================================================================
+ * P13：收尾几处（用户的六条反馈）
+ *   1) 页码显示成"44/1068"（不再是"位置 23"）
+ *   2) 底栏上的插件状态条拿掉，只留右下角页码
+ *   3) 方形一律改圆角
+ *   4) 抽屉页签统一高度/等宽（分段控件）
+ *   5) 右上角那个没有功能的计数标签拿掉
+ *   6) AI（整页与半屏）统一：半透明毛玻璃底
+ * ========================================================================== */
+
+/* ---------- 4) 抽屉页签：等宽分段控件 ---------- */
+
+.air-app[data-mobile="true"] .air-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 10px;
+  padding: 2px;
+  background: var(--m-grouped);
+  border-radius: 12px;
+  border-bottom: 0;
+  overflow: hidden;
+}
+
+.air-app[data-mobile="true"] .air-tabs button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--m-text);
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.air-app[data-mobile="true"] .air-tabs button[data-active="true"] {
+  background: var(--m-panel);
+  color: var(--m-tint);
+  border-bottom: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.air-app[data-mobile="true"] .air-tabs .air-sheet-close {
+  flex: 0 0 44px;
+  min-width: 44px;
+  min-height: 40px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--m-sub);
+}
+
+/* ---------- 3) 方形改圆角：表单控件与列表块统一圆角 ---------- */
+
+.air-app[data-mobile="true"] select,
+.air-app[data-mobile="true"] .air-chat-config select,
+.air-app[data-mobile="true"] .air-chat-config input,
+.air-app[data-mobile="true"] .air-anno,
+.air-app[data-mobile="true"] .air-note-book,
+.air-app[data-mobile="true"] .air-plugin-row,
+.air-app[data-mobile="true"] .air-perm,
+.air-app[data-mobile="true"] .air-skill {
+  border-radius: var(--m-r-field);
+}
+
+.air-app[data-mobile="true"] select {
+  box-sizing: border-box;
+}
+
+.air-app[data-mobile="true"] .air-chat-config input[type="checkbox"] {
+  border-radius: 6px;
+}
+
+/* ---------- 5) 右上角那个没有功能的计数标签：手机上不显示 ---------- */
+
+.air-app[data-mobile="true"] .air-lib-count {
+  display: none;
+}
+
+/* ---------- 6) AI：整页与半屏都用半透明毛玻璃底 ---------- */
+
+.air-app[data-mobile="true"] .air-ai-col {
+  background: var(--m-glass);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  background: var(--m-glass);
+}
+
+/* 里面这些块也跟着透一点，整体才像一块玻璃 */
+.air-app[data-mobile="true"] .air-ai-col .air-chat-ctx,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-skills,
+.air-app[data-mobile="true"] .air-chat-config {
+  background: color-mix(in srgb, var(--m-panel) 55%, transparent);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  box-shadow: var(--m-hairline);
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-assistant {
+  background: color-mix(in srgb, var(--m-panel) 62%, transparent);
+  box-shadow: var(--m-hairline);
+}
+
+/* 整页 AI 的头部与输入条也做成玻璃 */
+.air-app[data-mobile="true"] .air-page-head {
+  background: transparent;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-input {
+  background: var(--m-glass-strong);
+  border-top: 1px solid var(--m-line);
+}
+

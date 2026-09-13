@@ -148,6 +148,11 @@ export default function App() {
   const [toc, setToc] = useState<TocItem[]>([]);
   const [fraction, setFraction] = useState(0);
   const [location, setLocation] = useState("");
+  /**
+   * P13：页码要像参考那样显示"44/1068"（而不是"位置 23"）。
+   * foliate 的 relocate 事件里自带 location.current/total，直接用它当页码。
+   */
+  const [pager, setPager] = useState<{ current: number; total: number } | null>(null);
   const [flow, setFlow] = useState<"paginated" | "scrolled">("paginated");
   const [typo, setTypo] = useState<TypographyOptions>(defaultTypography);
   const [error, setError] = useState<string | null>(null);
@@ -473,6 +478,7 @@ export default function App() {
     setCurrentChapter(String(d.tocItem?.label ?? ""));
     const loc = d.pageItem?.label ?? (d.location ? t("app.position", { page: d.location.current }) : "");
     setLocation(loc);
+    setPager(d.location ? { current: d.location.current, total: d.location.total } : null);
     const idx = d.section?.current;
     let sectionFraction: number | undefined;
     let start: number | undefined;
@@ -1544,19 +1550,23 @@ export default function App() {
    * P7：手机端把 AI 从抽屉页签里**拿掉** —— 它现在是底栏的一格（参考里书店那一格），
    * 阅读页里也在底栏上，抽屉只留"跟当前这本书/书库有关的列表"。
    */
+  /**
+   * 抽屉页签。手机上是**等宽分段控件**（P13）：标签长度不一样会让每格宽度不一，
+   * 所以手机上用短标签（目录 / 批注 / 检索 / 设置），桌面仍带计数。
+   */
   const tabs: (readonly [SideTab, string])[] = isLibrary
     ? [
-        ["notes", t("app.tabNotes", { n: noteCounts.all })],
-        ["groups", t("app.tabGroups", { n: groups.length })],
+        ["notes", mobile ? t("app.tabNotesShort") : t("app.tabNotes", { n: noteCounts.all })],
+        ["groups", mobile ? t("app.tabGroupsShort") : t("app.tabGroups", { n: groups.length })],
         ...(mobile ? [] : ([["ai", "AI"]] as (readonly [SideTab, string])[])),
-        ["typo", t("app.tabSettings")],
+        ["typo", mobile ? t("app.tabSettingsShort") : t("app.tabSettings")],
       ]
     : [
-        ["toc", t("app.tabToc", { n: toc.length })],
-        ["anno", t("app.tabAnno", { n: annotations.length })],
+        ["toc", mobile ? t("app.tabTocShort") : t("app.tabToc", { n: toc.length })],
+        ["anno", mobile ? t("app.tabAnnoShort") : t("app.tabAnno", { n: annotations.length })],
         ["search", t("app.tabSearch")],
         ...(mobile ? [] : ([["ai", "AI"]] as (readonly [SideTab, string])[])),
-        ["typo", t("app.tabSettings")],
+        ["typo", mobile ? t("app.tabSettingsShort") : t("app.tabSettings")],
       ];
   const tab: SideTab = tabs.some(([id]) => id === sideTab) ? sideTab : tabs[0][0];
   /** 笔记总览（跨书）：按书分组，组内按时间倒序 */
@@ -1768,17 +1778,15 @@ export default function App() {
           */}
           {/* 页码：常驻在正文右下角（参考里"还剩 78 页"也是这个位置），不占版面 */}
           {mobile && bookName && (
-            <div className="air-reader-pageno">{location || (fraction ? Math.round(fraction * 100) + "%" : "")}</div>
+            <div className="air-reader-pageno">
+              {pager && pager.total ? pager.current + "/" + pager.total : location || (fraction ? Math.round(fraction * 100) + "%" : "")}
+            </div>
           )}
 
           {mobile && bookName && (
             <div className="air-reader-dock" data-on={chromeOn ? "true" : "false"}>
-              <SlotView
-                slots={runtime.slots}
-                name="reader.view.tail"
-                className="air-reader-tail"
-                onError={onSlotError}
-              />
+              {/* P13：插件那条"阅读状态"从底栏拿掉了（用户要求只保留右下角的页码）。
+                  桌面端仍然渲染它（上面那个 !mobile 分支），插件本身没变。 */}
               <button
                 className="air-chat-launcher"
                 onClick={() => {
