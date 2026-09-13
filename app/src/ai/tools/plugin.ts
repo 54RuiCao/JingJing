@@ -155,7 +155,31 @@ function slotSummary(entries: SlotCatalogEntry[]) {
     declaredBy: e.declaredBy,
     replaceRisk: e.replaceRisk,
     registrationCount: e.registrationCount,
-    hint: e.wired ? undefined : "宿主还没有渲染点，挂上去也不会显示",
+    /**
+     * P5：把"这一格现在是谁占着"也说出来。
+     * 用户反馈"可放置位置过少"——机制上插件**本来就能自己声明子槽位**（P3 就有），
+     * 但 AI 看不到谁能被盖、盖了会怎样，所以只会往现成那几个里挤。
+     * 这里补两样：现有子槽位（children）与占用者（occupants）。
+     */
+    // 声明里如果带了子槽位表就列出来（类型上它挂在 register 的 options 上，这里按窄类型读一次）
+    children: (() => {
+      const kids = (e as unknown as { children?: Record<string, { kind?: string; scope?: string; description?: string }> }).children;
+      if (!kids) return undefined;
+      return Object.entries(kids).map(([key, c]) => ({
+        key,
+        kind: c?.kind,
+        scope: c?.scope,
+        description: c?.description ? brief(c.description, 60) : undefined,
+      }));
+    })(),
+    occupants: e.cells?.length
+      ? e.cells.map((c) => ({ cell: c.key, winner: c.winner, shadows: c.shadows }))
+      : undefined,
+    hint: e.wired
+      ? e.kind === "single" && e.replaceRisk !== "none"
+        ? "single 席位：你注册进去会**盖住**别人（同 priority 会直接抛错，要盖就换更小的 priority）"
+        : undefined
+      : "宿主还没有渲染点，挂上去也不会显示",
   }));
 }
 
@@ -221,7 +245,17 @@ export function createPluginTools(deps: PluginToolDeps): ToolDefinition[] {
       const value: Record<string, unknown> = { query };
       const wantAll = query === "overview";
       try {
-        if (wantAll || query === "slots") value.slots = slotSummary(deps.slots.catalog());
+        if (wantAll || query === "slots") {
+          value.slots = slotSummary(deps.slots.catalog());
+          // 这条很关键：不写的话 AI 会以为"只能挂进现成的那几个位置"（用户实测的抱怨就是这个）
+          value.slotsHowTo = [
+            "① 挂进已声明的槽位：ctx.slots.register({ slot: '名字', id?, order?, priority?, label? }, render)",
+            "② **自己开新槽位**：在 register 的 options 里写 children: { mySlot: { kind: 'list', scope: 'plugin' } }，",
+            "   然后用 props.renderSlot('mySlot') 渲染它 —— 注意：**只有声明它的那个 entry 能渲染**，别人渲染会抛错；",
+            "   声明者一卸载，它声明的整棵子树连带崩塌（这是「只替换一小块 UI」的机制保证）。",
+            "③ 不要默认去挤 root / 侧栏这种整块席位：replaceRisk 高的席位会盖住别人、并带走它声明的子槽位。",
+          ].join("\n");
+        }
         if (wantAll || query === "tools") {
           const defs = deps.tools.visible();
           value.tools = defs.map((d) => ({ name: d.name, description: brief(d.description) }));
