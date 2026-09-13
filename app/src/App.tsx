@@ -222,6 +222,10 @@ export default function App() {
   /** 底栏那个搜索圆钮：切到书库并把焦点送进搜索框（参考里它是独立圆钮，不是一个页签） */
   const [searchFocus, setSearchFocus] = useState(false);
   /**
+   * P14：向下滚动时底栏收成"当前页签那一个圆钮"（照 iOS 那张图），向上滚或点它再展开。
+   */
+  const [tabbarMini, setTabbarMini] = useState(false);
+  /**
    * P10：阅读页 AI 半屏卡片的**档位**（照 HIG 的 sheet detents）。
    * 抓手可拖可点：往上拖/点一下 → 大档（88dvh）；往下拖 → 关掉。
    */
@@ -760,6 +764,22 @@ export default function App() {
     [],
   );
 
+  /** P14：首页底部那张"阅读目标"卡要今日阅读秒数 —— 首次进来取一次，读完书回来再取一次 */
+  const [todaySeconds, setTodaySeconds] = useState(0);
+  useEffect(() => {
+    if (!dbReady) return;
+    let alive = true;
+    void readingActivity
+      .snapshot()
+      .then((s) => {
+        if (alive) setTodaySeconds(s.todaySeconds ?? 0);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [dbReady, readingActivity, libraryVersion, route]);
+
   /**
    * 宿主自己的 AI 凭据（P3.11）：**只喂给 net 门面**，用来给插件的 GET 请求代填 Authorization。
    * 它不进沙箱（插件拿不到 Key 本身），也不出现在 plugin_inspect 的输出里。
@@ -922,6 +942,26 @@ export default function App() {
       off();
     };
   }, [runtime, themeId]);
+
+  /**
+   * 底栏随滚动收起：滚动容器是书库/首页那一列（`.air-library`），
+   * 往下滚超过 40px 就收成一个圆钮，往回滚立刻展开。
+   */
+  useEffect(() => {
+    if (!mobile || route === "reader") return;
+    let last = 0;
+    /** 谁在滚不重要（可能是 .air-library，也可能是它的父层）：捕获阶段听所有 scroll */
+    const onScroll = (e: Event) => {
+      const el = e.target as HTMLElement | Document;
+      const y = el instanceof HTMLElement ? el.scrollTop : (document.scrollingElement?.scrollTop ?? 0);
+      if (y < 40) setTabbarMini(false);
+      else if (y > last + 6) setTabbarMini(true);
+      else if (y < last - 6) setTabbarMini(false);
+      last = y;
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", onScroll, { capture: true });
+  }, [mobile, route, mobileTab, aiOpen]);
 
   const reloadBookContext = useCallback(() => {
     const last = lastSourceRef.current;
@@ -1779,7 +1819,11 @@ export default function App() {
           {/* 页码：常驻在正文右下角（参考里"还剩 78 页"也是这个位置），不占版面 */}
           {mobile && bookName && (
             <div className="air-reader-pageno">
-              {pager && pager.total ? pager.current + "/" + pager.total : location || (fraction ? Math.round(fraction * 100) + "%" : "")}
+              {pager && pager.total > 1
+                ? pager.current + " / " + pager.total
+                : fraction
+                  ? Math.round(fraction * 100) + "%"
+                  : location}
             </div>
           )}
 
@@ -1832,6 +1876,7 @@ export default function App() {
                 setSideTab("typo");
                 setSheetOpen(true);
               }}
+              todaySeconds={todaySeconds}
             />
           ) : (
             <div className="air-empty">
@@ -2270,7 +2315,15 @@ export default function App() {
          * 接着点"AI 下面那几栏"其实点在底栏上 → 一下子跳回首页/书库，人还在阅读里却被弹出去）。
          * 阅读页的出口是顶栏的返回键与抽屉，不需要底栏。
          */
-        <nav className="air-tabbar" style={{ display: route === "reader" ? "none" : "flex" }}>
+        <nav
+          className="air-tabbar"
+          data-collapsed={tabbarMini ? "true" : "false"}
+          style={{ display: route === "reader" ? "none" : "flex" }}
+        >
+          {/* 收起态：只显示当前页签的图标（点一下展开） */}
+          <button className="air-tabbar-mini" aria-label={t("app.tabHome")} onClick={() => setTabbarMini(false)}>
+            {mobileTab === "home" ? <HomeIcon /> : mobileTab === "library" ? <LibraryIcon /> : <AiIcon />}
+          </button>
           <div className="air-tabbar-pill">
             {(
               [

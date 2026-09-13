@@ -5,7 +5,7 @@ import { isMobile } from "../platform";
 import { listBooks, deleteBook, loadProgress, type Book } from "../store/db";
 import { filterBooks, groupsOfBook, type BookGroup, type BookGroupLink, type SortKey } from "./manage";
 import { useT } from "../i18n/react";
-import { GearIcon } from "../ui/mobileIcons";
+import { GearIconReal, ImportIcon, SortIcon } from "../ui/mobileIcons";
 
 type Props = {
   onOpen: (book: Book) => void;
@@ -34,6 +34,8 @@ type Props = {
   onSearchFocused?: () => void;
   /** 手机端头部右上角的设置圆钮（打开侧栏的「设置与插件」） */
   onOpenSettings?: () => void;
+  /** 今日阅读秒数（首页底部那张"阅读目标"卡用） */
+  todaySeconds?: number;
 };
 
 const FORMAT_LABEL: Record<string, string> = {
@@ -60,6 +62,7 @@ export function LibraryPage({
   autoFocusSearch = false,
   onSearchFocused,
   onOpenSettings,
+  todaySeconds: todaySecondsProp,
 }: Props) {
   const t = useT();
   const [books, setBooks] = useState<Book[]>([]);
@@ -71,6 +74,8 @@ export function LibraryPage({
   const [tagging, setTagging] = useState<string | null>(null);
   /** P7：正在展开「•••」菜单的那本书（参考里的 ••• 就在封面下方） */
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  /** P14：排序菜单（原来是一排分段控件，占了一整行） */
+  const [sortMenu, setSortMenu] = useState(false);
   const [newGroup, setNewGroup] = useState("");
 
   const refresh = useCallback(async () => {
@@ -119,10 +124,49 @@ export function LibraryPage({
     // continueBook 是每次 render 现取的对象，用 id 当依赖才不会被对象身份反复触发
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continueBook?.id, version]);
-  const upNext = useMemo(
-    () => shown.filter((b) => b.id !== continueBook?.id).slice(0, 12),
-    [shown, continueBook?.id],
+  /**
+   * P14：首页三栏需要"这本书读到哪了"。书不多（十几本），一次性把进度读进来最省事，
+   * 也免得每个书架各查一遍。
+   */
+  const [progress, setProgress] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const rows = await Promise.all(
+        books.map(async (b) => {
+          try {
+            const p = await loadProgress(b.id);
+            return [b.id, p?.fraction ?? 0] as const;
+          } catch {
+            return [b.id, 0] as const;
+          }
+        }),
+      );
+      if (alive) setProgress(Object.fromEntries(rows));
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [books, version]);
+
+  /** 欲读清单：一次都没打开过的（没有进度记录） */
+  const wantToRead = useMemo(
+    () => books.filter((b) => !(b.opened_at ?? null)).slice(0, 12),
+    [books],
   );
+  /** 已读完：进度 ≥ 99% */
+  const finished = useMemo(
+    () => books.filter((b) => (progress[b.id] ?? 0) >= 0.99).slice(0, 12),
+    [books, progress],
+  );
+
+  /** 阅读目标：今日阅读秒数（由 App 从阅读活动服务里取，取不到就当 0） */
+  const todaySeconds = todaySecondsProp ?? 0;
+  /** 每日目标：产品里还没有这个设置，先固定 30 分钟（将来进设置表） */
+  const GOAL_MINUTES = 30;
+  const goalSeconds = GOAL_MINUTES * 60;
+  const goalRatio = goalSeconds ? Math.min(1, todaySeconds / goalSeconds) : 0;
+  const goalTime = Math.floor(todaySeconds / 60) + ":" + String(Math.floor(todaySeconds % 60)).padStart(2, "0");
 
   const importOne = useCallback(
     async (srcPath: string) => {
@@ -254,24 +298,47 @@ export function LibraryPage({
       <div className="air-lib-head">
         <div className="air-lib-headrow">
           <h1 className="air-lib-title">{view === "home" ? t("app.tabHome") : t("app.tabLibrary")}</h1>
-          <span className="air-lib-count">
-            {activeGroup
-              ? t("lib.shownCount", { shown: shown.length, total: books.length })
-              : t("lib.totalCount", { n: books.length })}
-          </span>
-          {/* P7：手机端导航搬进底栏后，抽屉收起时"设置与插件"没有别的入口 ——
-              照参考（顶部右侧那排圆形按钮）放一个圆钮在这里 */}
-          {onOpenSettings && (
-            <button
-              className="air-lib-gear"
-              title={t("app.tabSettings")}
-              aria-label={t("app.tabSettings")}
-              onClick={onOpenSettings}
-            >
-              <GearIcon />
+          {/* P14（照参考）：搜索框从页头拿掉；导入与设置收进右上角这排圆钮；
+              排序改成一个按钮打开的菜单（参考书库页右上角那两个圆钮）。 */}
+          <div className="air-lib-tools">
+            {view === "library" && (
+              <button
+                className="air-lib-gear"
+                data-active={sortMenu}
+                title={t("lib.sortHeading")}
+                aria-label={t("lib.sortHeading")}
+                onClick={() => setSortMenu((v) => !v)}
+              >
+                <SortIcon />
+              </button>
+            )}
+            <button className="air-lib-gear" title={t("lib.importBooks")} aria-label={t("lib.importBooks")} onClick={() => void pickAndImport()}>
+              <ImportIcon />
             </button>
-          )}
+            {onOpenSettings && (
+              <button className="air-lib-gear" title={t("app.tabSettings")} aria-label={t("app.tabSettings")} onClick={onOpenSettings}>
+                <GearIconReal />
+              </button>
+            )}
+          </div>
         </div>
+        {sortMenu && (
+          <div className="air-sort-menu">
+            <div className="air-sort-head">{t("lib.sortHeading")}</div>
+            {(["recent", "added", "title"] as const).map((k) => (
+              <button
+                key={k}
+                data-active={sort === k}
+                onClick={() => {
+                  setSort(k);
+                  setSortMenu(false);
+                }}
+              >
+                {t(k === "recent" ? "lib.sortRecent" : k === "added" ? "lib.sortAdded" : "lib.sortTitle")}
+              </button>
+            ))}
+          </div>
+        )}
         {activeGroup && (
           <button
             className="air-chip"
@@ -284,28 +351,6 @@ export function LibraryPage({
             {t("lib.groupFilter", { name: activeGroup.name })}
           </button>
         )}
-        {/* 首页不摆排序（参考的 Home 也没有）；书库页才给分段控件 */}
-        {view === "library" && (
-          <div className="air-segmented" role="tablist">
-            {(["recent", "added", "title"] as const).map((k) => (
-              <button key={k} data-active={sort === k} onClick={() => setSort(k)}>
-                {t(k === "recent" ? "lib.sortRecent" : k === "added" ? "lib.sortAdded" : "lib.sortTitle")}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="air-lib-actions">
-          <input
-            ref={searchRef}
-            className="air-search"
-            placeholder={t("lib.searchPlaceholder")}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button className="air-lib-import" onClick={() => void pickAndImport()}>
-            {t("lib.importBooks")}
-          </button>
-        </div>
       </div>
 
       {busy && <div className="air-toast">{busy}</div>}
@@ -325,7 +370,7 @@ export function LibraryPage({
            底部居中一行"共 N 本"（参考里的 "2 books, 1 series"） */
         <div className="air-home">
           {continueBook && (
-            <div className="air-home-section">
+            <section className="air-home-section" data-tone="continue">
               <div className="air-home-sechead">{t("lib.continueReading")}</div>
               <div className="air-continue" onClick={() => onOpen(continueBook)} role="button">
                 <div className="air-continue-cover">
@@ -346,20 +391,20 @@ export function LibraryPage({
                   •••
                 </span>
               </div>
-            </div>
+            </section>
           )}
 
-          {upNext.length > 0 && (
-            <div className="air-home-section">
+          {wantToRead.length > 0 && (
+            <section className="air-home-section" data-tone="want">
               <div className="air-home-sechead">
-                {t("lib.upNext")}
+                {t("lib.wantToRead")}
                 <span className="air-home-chev" aria-hidden>
                   ›
                 </span>
               </div>
               <div className="air-home-sub">{t("lib.upNextHint")}</div>
               <div className="air-shelf">
-                {upNext.map((b) => (
+                {wantToRead.map((b) => (
                   <div key={b.id} className="air-shelf-item" onClick={() => onOpen(b)} title={b.original_name}>
                     <div className="air-cover">
                       {b.cover_path ? (
@@ -373,10 +418,68 @@ export function LibraryPage({
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          <div className="air-home-foot">{t("lib.totalCount", { n: books.length })}</div>
+          {finished.length > 0 && (
+            <section className="air-home-section" data-tone="done">
+              <div className="air-home-sechead">
+                {t("lib.finished")}
+                <span className="air-home-chev" aria-hidden>
+                  ›
+                </span>
+              </div>
+              <div className="air-shelf">
+                {finished.map((b) => (
+                  <div key={b.id} className="air-shelf-item" onClick={() => onOpen(b)} title={b.original_name}>
+                    <div className="air-cover">
+                      {b.cover_path ? (
+                        <img src={b.cover_path} alt="" />
+                      ) : (
+                        <span className="air-cover-fallback">{b.title.slice(0, 8)}</span>
+                      )}
+                    </div>
+                    <span className="air-shelf-badge">{(FORMAT_LABEL[b.format] ?? b.format).toUpperCase()}</span>
+                    <div className="air-shelf-title">{b.title || t("lib.untitled")}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 阅读目标（照 iOS 那张 Reading Goals）：弧形进度 + 今日时长 + 目标 + 继续阅读 */}
+          <section className="air-home-section air-goal">
+            <div className="air-goal-title">{t("lib.goalTitle")}</div>
+            <div className="air-goal-arc">
+              <svg viewBox="0 0 200 108" aria-hidden>
+                <path d="M12 100 A 88 88 0 0 1 188 100" fill="none" stroke="var(--m-grouped)" strokeWidth="9" strokeLinecap="round" />
+                <path
+                  d="M12 100 A 88 88 0 0 1 188 100"
+                  fill="none"
+                  stroke="var(--m-tint)"
+                  strokeWidth="9"
+                  strokeLinecap="round"
+                  strokeDasharray={String(Math.max(0, Math.min(1, goalRatio)) * 276) + " 276"}
+                />
+              </svg>
+              <div className="air-goal-inside">
+                <div className="air-goal-label">{t("lib.goalToday")}</div>
+                <div className="air-goal-time">{goalTime}</div>
+                <div className="air-goal-sub">{t("lib.goalOf", { n: GOAL_MINUTES })}</div>
+              </div>
+            </div>
+            {continueBook && (
+              <button className="air-goal-btn" onClick={() => onOpen(continueBook)}>
+                <span>{t("lib.continueReading")}</span>
+                <span className="air-goal-btn-sub">{continueBook.title}</span>
+              </button>
+            )}
+          </section>
+
+          <div className="air-home-foot">
+            {t("lib.totalCount", { n: books.length })}
+            {groups.length ? t("lib.collectionCount", { n: groups.length }) : ""}
+          </div>
         </div>
       ) : (
         <div className="air-grid">

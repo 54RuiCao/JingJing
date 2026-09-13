@@ -109,3 +109,35 @@ export function FontIcon() {
     </svg>
   );
 }
+
+/** 设置：齿轮（之前那个画得像太阳——中心圆 + 八根辐条，被指出来了） */
+export function GearIconReal() {
+  return (
+    <svg {...base}>
+      <path d="M10.3 3.6h3.4l.5 2.2 1.9 1.1 2.1-.9 1.7 2.9-1.7 1.5v2.2l1.7 1.5-1.7 2.9-2.1-.9-1.9 1.1-.5 2.2h-3.4l-.5-2.2-1.9-1.1-2.1.9L4 15.1l1.7-1.5v-2.2L4 9.9l1.7-2.9 2.1.9 1.9-1.1z" />
+      <circle cx="12" cy="12" r="2.6" />
+    </svg>
+  );
+}
+
+/** 排序：上下箭头 */
+export function SortIcon() {
+  return (
+    <svg {...base}>
+      <path d="M8 5v14M8 5 5 8.4M8 5l3 3.4" />
+      <path d="M16 19V5M16 19l3-3.4M16 19l-3-3.4" />
+    </svg>
+  );
+}
+
+/** 导入：向下进托盘 */
+export function ImportIcon() {
+  return (
+    <svg {...base}>
+      <path d="M12 4v10" />
+      <path d="M8.4 10.6 12 14.2l3.6-3.6" />
+      <path d="M5 17.5h14" />
+    </svg>
+  );
+}
+

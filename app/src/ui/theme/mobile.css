@@ -2141,3 +2141,307 @@ html[data-mobile="true"] body {
   border-top: 1px solid var(--m-line);
 }
 
+
+/* ============================================================================
+ * P14：AI 面板的三处硬伤（用户截图）
+ *   1) 长字符串（技能名 / 路径）把页面撑出横向滚动
+ *   2) AI / ✕ / 把手 与"模型名 + 设置 / 清空对话"之间空太多
+ *   3) 输入框与发送按钮还是太高
+ * ========================================================================== */
+
+/* 1) 任何地方都不许横向溢出 */
+.air-app[data-mobile="true"] .air-ai-col,
+.air-app[data-mobile="true"] .air-ai-col .air-chat,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-list,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-config {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.air-app[data-mobile="true"] .air-ai-col * {
+  min-width: 0;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-skills span,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-ctx,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-msg,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-config label,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-config label span,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-usage,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-warn {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 技能那一行：本身是一行 flex，长名字要能被截断 */
+.air-app[data-mobile="true"] .air-ai-col .air-chat-skills {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* 2) 头部收紧：把手/AI/✕ 与下面那行贴紧 */
+.air-app[data-mobile="true"] .air-ai-col .air-page-head {
+  padding: calc(6px + env(safe-area-inset-top)) var(--m-pad) 0;
+  min-height: 0;
+  align-items: center;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-page-head {
+  padding-top: 2px;
+  padding-bottom: 0;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-head {
+  margin-top: 6px;
+  margin-bottom: 8px;
+}
+
+/* 把手也矮一点 */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-ai-grab {
+  padding: 6px 0 2px;
+}
+
+/* 3) 输入条再矮一档 */
+.air-app[data-mobile="true"] .air-ai-col textarea {
+  min-height: 36px;
+  height: 36px;
+  max-height: 84px;
+  padding: 8px 12px;
+  font-size: var(--m-t-sub);
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-input button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-input {
+  padding: 6px var(--m-pad) calc(6px + env(safe-area-inset-bottom));
+}
+
+/* 设置块：紧凑、玻璃、别再是"一大张白卡" */
+.air-app[data-mobile="true"] .air-chat-config {
+  padding: 12px 12px 2px;
+  margin: 0 var(--m-pad) 8px;
+}
+
+.air-app[data-mobile="true"] .air-chat-config label {
+  margin-bottom: 10px !important;
+}
+
+.air-app[data-mobile="true"] .air-chat-config select,
+.air-app[data-mobile="true"] .air-chat-config input {
+  min-height: 40px;
+}
+
+
+/* ============================================================================
+ * P14：首页（继续阅读 / 欲读清单 / 已读完 + 阅读目标）与书库页头的重排
+ * ========================================================================== */
+
+/* ---------- 页头右侧那排圆钮（导入 / 排序 / 设置） ---------- */
+
+.air-app[data-mobile="true"] .air-lib-headrow {
+  align-items: center;
+}
+
+.air-app[data-mobile="true"] .air-lib-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.air-app[data-mobile="true"] .air-sort-menu {
+  position: absolute;
+  right: var(--m-pad);
+  z-index: 30;
+  min-width: 150px;
+  padding: 6px;
+  border-radius: var(--m-r-card);
+  background: var(--m-glass-strong);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: var(--m-shadow-pop), var(--m-hairline);
+  display: flex;
+  flex-direction: column;
+  animation: air-sheet-in 0.16s ease;
+}
+
+.air-app[data-mobile="true"] .air-sort-head {
+  padding: 6px 10px;
+  font-size: var(--m-t-cap);
+  color: var(--m-sub);
+}
+
+.air-app[data-mobile="true"] .air-sort-menu button {
+  border: 0;
+  background: transparent;
+  color: var(--m-text);
+  text-align: left;
+  font-size: var(--m-t-sub);
+  font-weight: 500;
+  padding: 10px;
+  min-height: 40px;
+  border-radius: 8px;
+}
+
+.air-app[data-mobile="true"] .air-sort-menu button[data-active="true"] {
+  background: var(--m-tint-soft);
+  color: var(--m-tint);
+  font-weight: 600;
+}
+
+/* 页头要能定位那个菜单 */
+.air-app[data-mobile="true"] .air-lib-head {
+  position: relative;
+}
+
+/* ---------- 首页三栏：每栏一张渐变卡 ---------- */
+
+.air-app[data-mobile="true"] .air-home-sec,
+.air-app[data-mobile="true"] .air-home-section {
+  position: relative;
+  padding: 14px var(--m-pad) 16px;
+  margin: 0 0 14px;
+  border-radius: var(--m-r-card);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--m-panel) 92%, transparent), color-mix(in srgb, var(--m-grouped) 78%, transparent));
+}
+
+/* 每栏一点自己的色调（参考里每一栏的底色都不同） */
+.air-app[data-mobile="true"] .air-home-section[data-tone="continue"] {
+  background: linear-gradient(150deg, rgba(235, 113, 45, 0.16), rgba(235, 113, 45, 0.04));
+}
+
+.air-app[data-mobile="true"] .air-home-section[data-tone="want"] {
+  background: linear-gradient(150deg, rgba(64, 120, 210, 0.14), rgba(64, 120, 210, 0.03));
+}
+
+.air-app[data-mobile="true"] .air-home-section[data-tone="done"] {
+  background: linear-gradient(150deg, rgba(52, 168, 120, 0.14), rgba(52, 168, 120, 0.03));
+}
+
+/* 栏内不再需要额外的左右内边距（外层已经给了） */
+.air-app[data-mobile="true"] .air-home-section .air-shelf {
+  margin: 0 calc(-1 * var(--m-pad));
+  padding-left: var(--m-pad);
+  padding-right: var(--m-pad);
+}
+
+/* ---------- 阅读目标卡 ---------- */
+
+.air-app[data-mobile="true"] .air-goal {
+  text-align: center;
+  padding-bottom: 18px;
+}
+
+.air-app[data-mobile="true"] .air-goal-title {
+  font-size: var(--m-t-section);
+  font-weight: var(--m-w-section);
+  letter-spacing: -0.3px;
+  margin-bottom: 6px;
+}
+
+.air-app[data-mobile="true"] .air-goal-arc {
+  position: relative;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 260px;
+}
+
+.air-app[data-mobile="true"] .air-goal-arc svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.air-app[data-mobile="true"] .air-goal-inside {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  text-align: center;
+}
+
+.air-app[data-mobile="true"] .air-goal-label {
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-goal-time {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -1.5px;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--m-text);
+}
+
+.air-app[data-mobile="true"] .air-goal-sub {
+  font-size: var(--m-t-sub);
+  color: var(--m-sub);
+  margin-top: 2px;
+}
+
+.air-app[data-mobile="true"] .air-goal-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  margin-top: 16px;
+  min-height: 52px;
+  border: 0;
+  border-radius: 999px;
+  background: #1c1c1e;
+  color: #fff;
+  font-size: var(--m-t-body);
+  font-weight: 600;
+}
+
+.air-app[data-mobile="true"] .air-goal-btn-sub {
+  font-size: var(--m-t-cap);
+  font-weight: 400;
+  opacity: 0.75;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 底栏滚动时收成一个圆钮 ---------- */
+
+.air-app[data-mobile="true"] .air-tabbar-mini {
+  pointer-events: auto;
+  width: 54px;
+  height: 54px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-glass-strong);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14), var(--m-hairline);
+  color: var(--m-text);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.air-app[data-mobile="true"] .air-tabbar-mini svg {
+  width: 24px;
+  height: 24px;
+}
+
+.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-pill {
+  display: none;
+}
+
+.air-app[data-mobile="true"] .air-tabbar[data-collapsed="true"] .air-tabbar-mini {
+  display: flex;
+}
+
+.air-tabbar-mini {
+  display: none;
+}
+
