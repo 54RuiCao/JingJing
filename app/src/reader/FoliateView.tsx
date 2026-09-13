@@ -221,6 +221,13 @@ export function FoliateView({
       view.addEventListener("relocate", (e: CustomEvent<RelocateDetail>) => {
         // 换页/换章后内容文档会重建，这里补挂一次（WeakSet 保证不重复挂）
         wireTapZones();
+        /**
+         * P5：**丢掉旧 view 的迟到事件**。
+         * 换书时会 close+remove 旧的 foliate-view，但它已经排队的事件仍可能到达 —— 实测后果：
+         * 上一本书的位置被写进新书的进度行（实测：两本书的进度行 fraction 逐位相同、
+         * updated_at 只差 21 秒），而且会覆盖 currentChapter，让 AI 的位置行描述成**另一本书的章**。
+         */
+        if (viewRef.current !== view) return;
         relocateRef.current?.(e.detail);
       });
 

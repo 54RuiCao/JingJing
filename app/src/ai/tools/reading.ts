@@ -107,8 +107,20 @@ export function createReadingTools(host: ToolHost): ToolDefinition<never>[] {
       }
       const content = host.chapter(n, Number((args as any).offset ?? 0), Number((args as any).maxChars ?? 6000));
       if (!content) {
+        /**
+         * P5：把"**没装进上下文**"和"**本来就没有正文**"分开说。
+         * 合订本/套装实测踩到：partial 模式只装了前 M 章，用户所在那一章没装载，这里却报
+         * "没有正文（可能是封面或图片页）"+ 建议"挑一个有 chars 的章节" —— 而 get_toc 手里
+         * 那一章明明 chars>0，两条工具结果自相矛盾，等于在推模型去换一章（很可能换到**另一本书**的同名章）。
+         */
+        const total = host.context()?.loadedChapters ?? 0;
+        if (!entry.inContext) {
+          return fail("NOT_AVAILABLE",
+            "第 " + n + " 章（" + entry.title + "）**没有装进本轮上下文**：这本书太长，只装了前 " + total + " 章",
+            "让用户翻到这一章再问，或用 search_book 检索该章的片段");
+        }
         return fail("NOT_FOUND", "第 " + n + " 章没有正文（可能是封面或图片页）",
-          "用 get_toc 挑一个有 chars 的章节");
+          "用 get_toc 看这一章有没有 chars（chars=0 就是没有正文）");
       }
       return ok({
         n,
@@ -213,11 +225,18 @@ export function createReadingTools(host: ToolHost): ToolDefinition<never>[] {
       const bad = requireBook(host);
       if (bad) return bad;
       const p = host.progress();
+      // 用宿主已有的 sectionIndex 从清单里换出**唯一确定的 n**（合订本两卷 section 不同 → n 不同）
+      const ctxEntry =
+        typeof p.sectionIndex === "number" ? host.chapters().find((m) => m.section === p.sectionIndex) ?? null : null;
       const c = host.context();
       return ok({
         fraction: Math.round(p.fraction * 1000) / 1000,
         percent: Math.round(p.fraction * 100) + "%",
         chapter: p.chapter || null,
+        // 位置键不能丢：合订本里只有它能消歧同名章（P5 实测）
+        section: typeof p.sectionIndex === "number" ? p.sectionIndex : null,
+        chapterN: ctxEntry?.n ?? null,
+        chapterHref: ctxEntry?.href ?? null,
         location: p.location || null,
         context: c ? { mode: c.mode, loadedChapters: c.loadedChapters, chapters: c.chapters } : null,
       });

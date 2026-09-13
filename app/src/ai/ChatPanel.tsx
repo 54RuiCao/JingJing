@@ -30,6 +30,8 @@ export type BookContext = {
   author?: string;
   /** 当前章节标题 */
   chapter?: string;
+  /** 当前章节在全书清单里的序号 n（合订本里同名章只有它能消歧，见 prompt.ts 的 BookBrief） */
+  chapterN?: number;
   toc?: string[];
   /** 当前页码 / 位置描述 */
   location?: string;

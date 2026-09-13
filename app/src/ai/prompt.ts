@@ -104,6 +104,14 @@ export type BookBrief = {
   author?: string;
   /** 当前章节标题 */
   chapter?: string;
+  /**
+   * 当前章节在**全书清单里的序号 n**（P5 实测加的）。
+   * 合订本/套装里两卷章标题逐字节相同（实测《堂吉诃德：全2册》有 52 组同名章、
+   * 两条候选相隔 30 万字符），只给标题时模型只能二选一 —— 用户看到的就是"问第一本答第二本"。
+   * 这个 n 与正文标记 `<<CH n=…>>` 是同一口径，模型能直接对上。
+   */
+  chapterN?: number;
+
   /** 位置描述，如「位置 199」「第 3/25 页」 */
   location?: string;
   /** 全书目录（简要模式用） */
@@ -214,8 +222,14 @@ export function buildSkillInvocationMessage(name: string, rendered: string): Cha
 
 /** 最后一条：当前阅读位置（可变）+ 用户问题（可变） */
 export function buildQuestionMessage(question: string, brief: BookBrief): ChatMessage {
-  const at = [brief.chapter, brief.location].filter(Boolean).join(" · ");
-  return { role: "user", content: (at ? "[当前阅读位置：" + at + "]\n\n" : "") + question };
+  const where = brief.chapter
+    ? brief.chapterN
+      ? "第 " + brief.chapterN + " 章（n=" + brief.chapterN + "）" + brief.chapter
+      : brief.chapter
+    : null;
+  const at = [where, brief.location].filter(Boolean).join(" · ");
+  const hint = brief.chapterN ? "（n= 就是正文标记里的 n，用它对齐章节）" : "";
+  return { role: "user", content: (at ? "[当前阅读位置：" + at + "]" + hint + "\n\n" : "") + question };
 }
 
 export function buildRequestMessages(opts: {

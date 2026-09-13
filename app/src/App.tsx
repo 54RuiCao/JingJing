@@ -1697,6 +1697,9 @@ export default function App() {
                       title: bookName ? title : "",
                       author: currentAuthor,
                       chapter: currentChapter,
+                      // 合订本必备：两卷同名章只有 n 能消歧（P5 实测"问第一本答第二本"的根因）
+                      chapterN:
+                        ctxLoad.data?.manifest.find((m) => m.section === sectionRef.current.sectionIndex)?.n ?? undefined,
                       location,
                       toc: toc.map((t) => String(t.label ?? "")).filter(Boolean),
                     }
