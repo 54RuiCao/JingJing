@@ -1980,9 +1980,11 @@ export default function App() {
             data-size={aiSheetSize}
             style={{ display: aiOpen ? "flex" : "none" }}
           >
-            {/* 抓手：拖上去放大、拖下去关掉、点一下在两档之间切换（HIG 的 sheet detents） */}
+            {/* P16：阅读页里的 AI 卡片**不再有头部**（抓手 / AI / ✕ 那一行整条删掉）——
+                关掉它靠点遮罩或系统返回键，省下的高度留给对话。
+                书库/首页的整页 AI 仍然保留标题行（那是"页"，不是"卡片"）。 */}
             <div
-              className="air-ai-grab"
+              className="air-ai-grab air-ai-sheet-only-hide"
               aria-hidden
               onPointerDown={(e) => {
                 sheetDragY.current = e.clientY;
@@ -1998,7 +2000,7 @@ export default function App() {
                 else if (Math.abs(dy) < 12) setAiSheetSize((s) => (s === "medium" ? "large" : "medium"));
               }}
             />
-            <div className="air-page-head">
+            <div className={"air-page-head" + (route === "reader" ? " air-ai-sheet-only-hide" : "")}>
               <h1 className="air-page-title">{t("app.tabAi")}</h1>
               <button
                 className="air-page-close"
@@ -2295,30 +2297,12 @@ export default function App() {
             ))}
           </div>
 
+          {/*
+            P16：抽屉里**不再放"阅读排版"**（字号 / 行距 / 缩进 / 分页方式 / 字体）。
+            排版只在阅读页那个 Aa 面板里调 —— 那里是"边看边调"，改完立刻能看到效果；
+            放在设置里既看不到效果、又和 Aa 面板重复。这里只留"翻页方式"这一个开关。
+          */}
           <h3>{t("app.typographyHeading")}</h3>
-          {/* P15：文字与滑块**同一行对齐**（标签包一层 span 才能定宽），行距也收紧 */}
-          <div className="air-typo-set">
-            <label>
-              <span className="air-typo-lab">{t("app.fontSize", { n: typo.fontSize })}</span>
-              <input type="range" min={12} max={32} value={typo.fontSize}
-                onChange={(e) => setTypo((t) => ({ ...t, fontSize: Number(e.target.value) }))} />
-            </label>
-          </div>
-          <div className="air-typo-set">
-            <label>
-              <span className="air-typo-lab">{t("app.lineHeightLabel", { n: typo.lineHeight.toFixed(2) })}</span>
-              <input type="range" min={1.2} max={2.4} step={0.05} value={typo.lineHeight}
-                onChange={(e) => setTypo((t) => ({ ...t, lineHeight: Number(e.target.value) }))} />
-            </label>
-          </div>
-          <div className="air-typo-set">
-            {/* 文案里已经带了 em，这里再补一个就成了"2emem"（真机截图里看到的） */}
-            <label>
-              <span className="air-typo-lab">{t("app.indentLabel", { n: typo.indent })}</span>
-              <input type="range" min={0} max={3} step={0.5} value={typo.indent}
-                onChange={(e) => setTypo((t) => ({ ...t, indent: Number(e.target.value) }))} />
-            </label>
-          </div>
           <div style={{ marginBottom: 8 }}>
             <button data-active={flow === "paginated"} onClick={() => setFlow("paginated")}>{t("app.paginated")}</button>{" "}
             <button data-active={flow === "scrolled"} onClick={() => setFlow("scrolled")}>{t("app.scrolled")}</button>
@@ -2456,7 +2440,20 @@ export default function App() {
             <div className="air-typo-grab" />
             <div className="air-typo-row air-typo-size">
               <button onClick={() => setTypo((v) => ({ ...v, fontSize: Math.max(12, v.fontSize - 1) }))}>A</button>
-              <div className="air-typo-readout">{t("app.fontSizeN", { n: typo.fontSize })}</div>
+              {/* P16：字号可以自己填（原来只能 ±1 点） */}
+              <label className="air-typo-readout">
+                <input
+                  type="number"
+                  min={12}
+                  max={48}
+                  value={typo.fontSize}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (Number.isFinite(n)) setTypo((v) => ({ ...v, fontSize: Math.max(12, Math.min(48, Math.round(n))) }));
+                  }}
+                />
+                <span>px</span>
+              </label>
               <button className="air-typo-big" onClick={() => setTypo((v) => ({ ...v, fontSize: Math.min(34, v.fontSize + 1) }))}>
                 A
               </button>

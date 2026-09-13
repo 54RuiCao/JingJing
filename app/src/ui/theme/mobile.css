@@ -2557,3 +2557,52 @@ html[data-mobile="true"] body {
   margin: 0 !important;
 }
 
+
+/* Aa 面板里的字号：数字输入框（自己填） */
+.air-app[data-mobile="true"] .air-typo-readout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 auto;
+}
+
+.air-app[data-mobile="true"] .air-typo-readout input {
+  width: 64px;
+  min-height: 36px;
+  padding: 4px 8px;
+  text-align: center;
+  font-size: var(--m-t-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.air-app[data-mobile="true"] .air-typo-readout span {
+  font-size: var(--m-t-sub);
+  color: var(--m-sub);
+}
+
+/* 阅读页 AI 卡片：头部整条隐藏（抓手 + AI + ✕） */
+.air-app[data-mobile="true"] .air-ai-sheet-only-hide {
+  display: none !important;
+}
+
+/* AI 输入条紧贴系统导航栏（原来下方留了一大截） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-input {
+  padding-bottom: calc(2px + min(env(safe-area-inset-bottom), 10px));
+}
+
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  padding-bottom: 0;
+}
+
+/* AI 背景再透一点（跟其它玻璃层一致） */
+.air-app[data-mobile="true"] .air-ai-col,
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  background: color-mix(in srgb, var(--m-panel) 68%, transparent);
+}
+
+/* 半屏里上下文条不再限高（之前被裁成一行，看起来像坏了） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] .air-chat-ctx {
+  max-height: none;
+}
+

@@ -56,6 +56,7 @@ export function buildBookCSS(
 ): string {
   const t = theme?.book;
   const pick = (name: string, fallback: string | undefined) => tokens?.[name] ?? fallback;
+  const isDark = theme?.id === "dark";
   const bg = pick("--air-book-bg", t?.bg);
   const text = pick("--air-book-text", t?.text);
   const link = pick("--air-book-link", t?.link);
@@ -149,6 +150,17 @@ img, svg, video {
 }
 
 ${link ? `a:link, a:visited { color: ${link}; }` : ""}
+
+/* 引用段落（blockquote / aside / 常见引用类名）在深色纸下经常读不清 ——
+   书自己的 CSS 会给它们一个"适合白纸"的深色，白纸没问题，黑纸上就糊了。
+   P16：黑色纸下把这些容器强制回正文色（保留缩进与斜体，只改颜色）。 */
+${isDark ? `
+blockquote, blockquote *, aside, aside *, figure, figure *, cite,
+.quote, .quote *, .epigraph, .epigraph *,
+[class*="quote" i], [class*="quote" i] * {
+  color: ${text ?? "#e6e6ea"} !important;
+}
+` : ""}
 
 ruby rt {
   font-size: 0.5em;
