@@ -1363,3 +1363,160 @@ html[data-mobile="true"] body {
   background: rgba(0, 0, 0, 0.22);
 }
 
+
+/* ============================================================================
+ * P9：毛玻璃（参考 App 的导航/弹出层质感）+ AI 面板的页边距
+ * 规范见 design.md（§4.3 毛玻璃 / §3 间距）
+ * ========================================================================== */
+
+.air-app[data-mobile="true"] {
+  --m-glass: color-mix(in srgb, var(--m-panel) 74%, transparent);
+  --m-glass-strong: color-mix(in srgb, var(--m-panel) 90%, transparent);
+  --m-glass-blur: saturate(180%) blur(24px);
+  --m-hairline: 0 0 0 0.5px var(--m-line);
+}
+
+/* ---------- 毛玻璃的落点 ---------- */
+
+/* 1) 阅读页里的半屏卡片：背后就是正文，模糊才有意义（这是用户要的"半边 UI 背景"） */
+.air-app[data-mobile="true"] .air-ai-col[data-sheet="true"] {
+  background: var(--m-glass);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: var(--m-shadow-sheet), var(--m-hairline);
+}
+
+/* 2) 抽屉与排版面板：同样是盖在内容上的卡片 */
+.air-app[data-mobile="true"] .air-side {
+  background: var(--m-glass-strong);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: var(--m-shadow-sheet), var(--m-hairline);
+}
+
+.air-app[data-mobile="true"] .air-typo-sheet {
+  background: var(--m-glass-strong);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+  box-shadow: var(--m-shadow-sheet), var(--m-hairline);
+}
+
+/* 3) 搜索框 / 输入框：半透明填充 + 发丝描边（参考里的搜索框是"淡灰玻璃片"） */
+.air-app[data-mobile="true"] .air-search,
+.air-app[data-mobile="true"] .air-lib-actions input,
+.air-app[data-mobile="true"] .air-ai-col textarea {
+  background: color-mix(in srgb, var(--m-grouped) 78%, transparent);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  box-shadow: var(--m-hairline);
+}
+
+/* ---------- AI 面板：页边距与字阶（用户反馈"页边距很不好看"）---------- */
+
+/* 除输入区外的每一段都左右留 18px；输入区自己通栏并带上面那条发丝线 */
+/* 注意：ctx / skills 两条用 margin 定位（见下面），别在这里再加 padding，否则双倍缩进 */
+.air-app[data-mobile="true"] .air-ai-col .air-chat-head,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-warn,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-notice,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-error,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-usage,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-tools,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-config,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-list {
+  padding-left: var(--m-pad);
+  padding-right: var(--m-pad);
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-list {
+  padding-top: 6px;
+  gap: 10px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-input {
+  margin: 8px 0 0;
+  padding: 10px var(--m-pad) calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--m-line);
+  background: var(--m-glass-strong);
+  backdrop-filter: var(--m-glass-blur);
+  -webkit-backdrop-filter: var(--m-glass-blur);
+}
+
+/* 字阶跟手机规范对齐（原来沿用桌面的 11–13px，在手机上又小又挤） */
+.air-app[data-mobile="true"] .air-ai-col .air-chat-head,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-head button,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-skills,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-notice,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-warn {
+  font-size: var(--m-t-sub);
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-head {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-usage,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-error {
+  font-size: var(--m-t-cap);
+}
+
+/* 上下文条 / 技能条：换成规矩的圆角块，不要虚线框 */
+.air-app[data-mobile="true"] .air-ai-col .air-chat-ctx,
+.air-app[data-mobile="true"] .air-ai-col .air-chat-skills {
+  border: 0;
+  border-radius: var(--m-r-field);
+  background: color-mix(in srgb, var(--m-grouped) 70%, transparent);
+  padding: 10px 12px;
+  margin: 0 var(--m-pad) 10px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-ctx-btn {
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-panel);
+  color: var(--m-text);
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  padding: 6px 12px;
+  min-height: 32px;
+}
+
+/* 气泡：白底/淡底 + 更大的圆角与行距 */
+.air-app[data-mobile="true"] .air-ai-col .air-chat-msg {
+  font-size: var(--m-t-body);
+  line-height: 1.65;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-user {
+  background: var(--m-tint);
+  color: #fff;
+  max-width: 86%;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-assistant {
+  background: color-mix(in srgb, var(--m-text) 7%, transparent);
+  color: var(--m-text);
+  max-width: 94%;
+}
+
+.air-app[data-mobile="true"] .air-ai-col textarea {
+  border: 0;
+  border-radius: var(--m-r-field);
+  padding: 10px 12px;
+  font-size: var(--m-t-body);
+  min-height: 44px;
+}
+
+.air-app[data-mobile="true"] .air-ai-col .air-chat-input button {
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-tint);
+  color: #fff;
+  font-size: var(--m-t-sub);
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 18px;
+}
+
